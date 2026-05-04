@@ -214,8 +214,8 @@ export function RocmPilotDashboard() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <section className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mx-auto flex w-full max-w-none flex-col gap-5 px-4 py-5 sm:px-5 lg:px-6">
+        <section className="grid gap-5 border-b border-border pb-5 xl:grid-cols-[minmax(280px,0.55fr)_minmax(0,1fr)] xl:items-end">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-100">
@@ -238,8 +238,8 @@ export function RocmPilotDashboard() {
             </div>
           </div>
 
-          <div className="grid gap-3 lg:min-w-[620px] lg:grid-cols-[minmax(180px,0.75fr)_minmax(260px,1.25fr)_auto]">
-            <div className="grid gap-2">
+          <div className="grid w-full min-w-0 gap-3 md:grid-cols-[minmax(220px,0.85fr)_minmax(260px,1.35fr)] xl:grid-cols-[minmax(220px,0.8fr)_minmax(340px,1.45fr)_max-content]">
+            <div className="grid min-w-0 gap-2">
               <Label htmlFor="sample">Sample workload</Label>
               <Select
                 value={sampleId}
@@ -248,7 +248,10 @@ export function RocmPilotDashboard() {
                   setGithubUrl("");
                 }}
               >
-                <SelectTrigger id="sample" className="bg-card">
+                <SelectTrigger
+                  id="sample"
+                  className="h-10 w-full min-w-0 bg-card [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                >
                   <SelectValue placeholder="Select sample" />
                 </SelectTrigger>
                 <SelectContent>
@@ -260,18 +263,18 @@ export function RocmPilotDashboard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
+            <div className="grid min-w-0 gap-2">
               <Label htmlFor="github-url">Public GitHub URL</Label>
               <Input
                 id="github-url"
-                className="bg-card font-mono text-xs"
+                className="h-10 bg-card font-mono text-xs sm:text-sm"
                 onChange={(event) => setGithubUrl(event.target.value)}
                 placeholder="https://github.com/org/repo"
                 value={githubUrl}
               />
             </div>
             <Button
-              className="h-10 self-end"
+              className="h-10 w-full self-end md:col-span-2 xl:col-span-1 xl:w-auto"
               disabled={isStarting || (run?.status === "running")}
               onClick={startRun}
             >
