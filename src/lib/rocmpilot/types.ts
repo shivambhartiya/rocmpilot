@@ -66,6 +66,17 @@ export type BenchmarkResult = {
   costNote: string;
 };
 
+export type AgentMessageKind = "signal" | "challenge" | "proposal" | "consensus";
+
+export type AgentMessage = {
+  id: string;
+  agent: string;
+  role: string;
+  kind: AgentMessageKind;
+  message: string;
+  createdAt: string;
+};
+
 export type RunTarget = {
   type: RunTargetType;
   repoUrl: string;
@@ -89,6 +100,7 @@ export type RocmRun = {
   findings: Finding[];
   patches: PatchPreview[];
   logs: string[];
+  agentMessages: AgentMessage[];
   benchmarks: BenchmarkResult[];
   modelStatus: GpuModelStatus;
 };

@@ -1,4 +1,6 @@
 import type {
+  AgentMessage,
+  AgentMessageKind,
   BenchmarkResult,
   Finding,
   GpuModelStatus,
@@ -221,6 +223,133 @@ const LOGS = [
   "completed run with fallback-safe report path",
 ];
 
+type MessageBlueprint = {
+  offsetMs: number;
+  agent: string;
+  role: string;
+  kind: AgentMessageKind;
+  message: (context: {
+    target: RunTarget;
+    sample: SampleRepo;
+    findings: Finding[];
+    patches: PatchPreview[];
+  }) => string;
+};
+
+const WAR_ROOM_MESSAGES: MessageBlueprint[] = [
+  {
+    offsetMs: 1_200,
+    agent: "Orchestrator",
+    role: "Run coordinator",
+    kind: "signal",
+    message: ({ target }) =>
+      `Opening shared migration room for ${target.label}. Every agent should cite evidence before proposing changes.`,
+  },
+  {
+    offsetMs: 3_000,
+    agent: "Repo Doctor",
+    role: "Compatibility scout",
+    kind: "signal",
+    message: ({ target }) =>
+      target.type === "github"
+        ? `Live scan is checking ${target.scannedFiles || "the selected"} repo files for CUDA, NVIDIA images, and GPU runtime assumptions.`
+        : "Curated scan is checking Docker, vLLM launch scripts, PyTorch device paths, and benchmark coverage.",
+  },
+  {
+    offsetMs: 5_400,
+    agent: "Repo Doctor",
+    role: "Compatibility scout",
+    kind: "signal",
+    message: ({ findings }) =>
+      findings[0]
+        ? `First blocker: ${findings[0].category} in ${findings[0].file}:${findings[0].line}.`
+        : "No hard blocker yet, but I am keeping the scan focused on vendor-locked runtime paths.",
+  },
+  {
+    offsetMs: 7_300,
+    agent: "Migration Planner",
+    role: "Patch strategist",
+    kind: "proposal",
+    message: ({ findings }) =>
+      findings[0]
+        ? `I will turn that into a backend-aware migration step: ${findings[0].recommendedFix}`
+        : "I will draft a backend-aware plan that keeps CUDA and ROCm paths explicit instead of hidden in environment assumptions.",
+  },
+  {
+    offsetMs: 9_300,
+    agent: "Build Runner",
+    role: "Skeptical validator",
+    kind: "challenge",
+    message:
+      () =>
+        "Before we call this ROCm-ready, I need container evidence, import checks, and an OpenAI-compatible vLLM smoke path.",
+  },
+  {
+    offsetMs: 11_600,
+    agent: "Migration Planner",
+    role: "Patch strategist",
+    kind: "proposal",
+    message: ({ patches }) =>
+      patches[0]
+        ? `Patch candidate is ready for ${patches[0].file}. It centralizes the risky vendor decision instead of scattering it across inference code.`
+        : "Patch candidate is ready: separate device resolution from model-serving logic so ROCm can be validated cleanly.",
+  },
+  {
+    offsetMs: 14_200,
+    agent: "Build Runner",
+    role: "Skeptical validator",
+    kind: "challenge",
+    message:
+      () =>
+        "The plan is useful, but the Docker path must be named separately. A CUDA image with ROCm notes is still a deployment trap.",
+  },
+  {
+    offsetMs: 16_400,
+    agent: "Benchmark Agent",
+    role: "Evidence analyst",
+    kind: "signal",
+    message:
+      () =>
+        "I am tracking readiness as bootability, tokens/sec, p95 latency, memory footprint, and whether the report model can run behind vLLM.",
+  },
+  {
+    offsetMs: 18_900,
+    agent: "Migration Planner",
+    role: "Patch strategist",
+    kind: "proposal",
+    message:
+      () =>
+        "Consensus direction: prioritize runtime bootability first, then serving flags, then benchmark instrumentation.",
+  },
+  {
+    offsetMs: 21_300,
+    agent: "Report Agent",
+    role: "Submission narrator",
+    kind: "signal",
+    message:
+      () =>
+        "I am converting the room decisions into a judge-readable story: what broke, what changed, where AMD GPUs enter, and why a company would pay for this.",
+  },
+  {
+    offsetMs: 24_200,
+    agent: "Benchmark Agent",
+    role: "Evidence analyst",
+    kind: "challenge",
+    message:
+      () =>
+        "Mark demo metrics clearly until AMD Developer Cloud proof is attached. That honesty makes the GPU story stronger, not weaker.",
+  },
+  {
+    offsetMs: 27_000,
+    agent: "Orchestrator",
+    role: "Run coordinator",
+    kind: "consensus",
+    message:
+      () =>
+        "Final consensus: ship a ROCm readiness report, patch previews, and an AMD/vLLM validation checklist. Next run should replace estimates with MI300X logs.",
+  },
+];
+
 export type RunRecord = {
   id: string;
   sampleId: string;
@@ -413,6 +542,24 @@ function buildTarget(record: RunRecord, analysis?: RepoAnalysis): RunTarget {
   };
 }
 
+function buildAgentMessages(
+  elapsed: number,
+  record: RunRecord,
+  target: RunTarget,
+  sample: SampleRepo,
+  findings: Finding[],
+  patches: PatchPreview[]
+): AgentMessage[] {
+  return WAR_ROOM_MESSAGES.filter((blueprint) => elapsed >= blueprint.offsetMs).map((blueprint) => ({
+    id: `${record.id}.${blueprint.offsetMs}.${blueprint.agent.toLowerCase().replace(/\W+/g, "-")}`,
+    agent: blueprint.agent,
+    role: blueprint.role,
+    kind: blueprint.kind,
+    message: blueprint.message({ target, sample, findings, patches }),
+    createdAt: new Date(record.startedAt + blueprint.offsetMs).toISOString(),
+  }));
+}
+
 export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun {
   const elapsed = Math.max(0, Date.now() - record.startedAt);
   const sample =
@@ -474,6 +621,14 @@ export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun
       : [];
   const visibleBenchmarks = elapsed > 18_000 ? allBenchmarks : allBenchmarks.slice(0, 1);
   const visibleLogs = allLogs.slice(0, Math.min(allLogs.length, Math.max(1, Math.ceil(elapsed / 2_300))));
+  const agentMessages = buildAgentMessages(
+    elapsed,
+    record,
+    target,
+    sample,
+    visibleFindings.length ? visibleFindings : allFindings,
+    visiblePatches.length ? visiblePatches : allPatches
+  );
 
   return {
     id: record.id,
@@ -488,6 +643,7 @@ export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun
     findings: visibleFindings,
     patches: visiblePatches,
     logs: visibleLogs,
+    agentMessages,
     benchmarks: visibleBenchmarks,
     modelStatus: getModelStatus(),
   };

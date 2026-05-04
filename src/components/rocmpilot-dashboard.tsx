@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/table";
 import { SAMPLE_REPOS } from "@/lib/rocmpilot/data";
 import type {
+  AgentMessage,
+  AgentMessageKind,
   FindingSeverity,
   ReportResponse,
   RocmRun,
@@ -79,6 +81,22 @@ const statusTone = {
   completed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
 };
 
+const messageKindTone: Record<AgentMessageKind, string> = {
+  signal: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  challenge: "border-amber-500/40 bg-amber-500/10 text-amber-100",
+  proposal: "border-violet-500/40 bg-violet-500/10 text-violet-100",
+  consensus: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
+};
+
+const agentDotTone: Record<string, string> = {
+  Orchestrator: "bg-emerald-300",
+  "Repo Doctor": "bg-cyan-300",
+  "Migration Planner": "bg-violet-300",
+  "Build Runner": "bg-amber-300",
+  "Benchmark Agent": "bg-sky-300",
+  "Report Agent": "bg-rose-300",
+};
+
 function StageIcon({ stage }: { stage: RunStage }) {
   if (stage.status === "completed") {
     return <CheckCircle2 className="size-4 text-emerald-300" />;
@@ -101,6 +119,97 @@ function formatTime(value: string | undefined) {
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(value));
+}
+
+function WarRoomMessage({ message }: { message: AgentMessage }) {
+  return (
+    <div className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 rounded-lg border border-border/70 bg-background/60 p-3">
+      <div className="relative mt-1 flex size-7 items-center justify-center rounded-full border border-border bg-card">
+        <span
+          className={`size-2.5 rounded-full ${agentDotTone[message.agent] ?? "bg-zinc-400"}`}
+        />
+      </div>
+      <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-semibold">{message.agent}</p>
+          <Badge variant="outline" className={messageKindTone[message.kind]}>
+            {message.kind}
+          </Badge>
+          <span className="font-mono text-[11px] text-muted-foreground">
+            {formatTime(message.createdAt)}
+          </span>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">{message.role}</p>
+        <p className="break-words text-sm leading-6 text-foreground">{message.message}</p>
+      </div>
+    </div>
+  );
+}
+
+function AgentWarRoom({ run }: { run: RocmRun | null }) {
+  const messages = run?.agentMessages ?? [];
+  const latestMessage = messages[messages.length - 1];
+
+  return (
+    <Card>
+      <CardHeader className="gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Activity className="size-5 text-cyan-200" />
+              Agent War Room
+            </CardTitle>
+            <CardDescription>
+              Shared monitor where the agents debate findings, challenge assumptions, and converge on a plan.
+            </CardDescription>
+          </div>
+          <Badge
+            variant="outline"
+            className={
+              run?.status === "running"
+                ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100"
+                : run?.status === "completed"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-300"
+            }
+          >
+            {run?.status === "running" ? "live room" : run?.status === "completed" ? "consensus" : "standby"}
+          </Badge>
+        </div>
+        {latestMessage && (
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm leading-6 text-emerald-50">
+            <span className="font-medium">{latestMessage.agent}:</span>{" "}
+            <span className="text-emerald-100/90">{latestMessage.message}</span>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        {messages.length ? (
+          <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+            {messages.map((message) => (
+              <WarRoomMessage key={message.id} message={message} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-3 rounded-lg border border-dashed border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              "Repo Doctor",
+              "Migration Planner",
+              "Build Runner",
+              "Benchmark Agent",
+              "Report Agent",
+              "Orchestrator",
+            ].map((agent) => (
+              <div key={agent} className="flex min-w-0 items-center gap-3 rounded-lg bg-card p-3">
+                <span className={`size-2.5 shrink-0 rounded-full ${agentDotTone[agent] ?? "bg-zinc-400"}`} />
+                <span className="truncate text-sm text-muted-foreground">{agent} waiting</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function RocmPilotDashboard() {
@@ -358,6 +467,8 @@ export function RocmPilotDashboard() {
                 </div>
               </CardContent>
             </Card>
+
+            <AgentWarRoom run={run} />
 
             <Card>
               <CardHeader>
