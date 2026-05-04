@@ -1,5 +1,5 @@
 # /// script
-# dependencies = ["trl>=0.12.0", "peft>=0.7.0", "datasets>=3.0.0", "transformers>=4.46.0", "accelerate>=1.0.0", "trackio"]
+# dependencies = ["trl>=0.12.0", "peft>=0.7.0", "datasets>=3.0.0", "transformers>=4.46.0", "accelerate>=1.0.0"]
 # ///
 """LoRA SFT training script for the polished ROCmPilot agents.
 
@@ -51,9 +51,8 @@ def main() -> None:
             learning_rate=2e-4,
             warmup_ratio=0.05,
             logging_steps=5,
-            save_steps=40,
-            report_to="trackio",
-            project="rocmpilot",
+            save_strategy="no",
+            report_to="none",
             run_name="rocmpilot-sft-lora",
             bf16=bf16,
             fp16=fp16,
