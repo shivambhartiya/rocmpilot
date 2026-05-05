@@ -94,6 +94,71 @@ MIGRATION_CASES = [
         "finding": "The project checks GPU availability through CUDA-only assumptions and does not document ROCm behavior.",
         "recommendation": "Centralize accelerator detection and represent CUDA, ROCm, and CPU as explicit runtime modes.",
     },
+    {
+        "category": "NVIDIA monitoring command",
+        "severity": "medium",
+        "file": "scripts/healthcheck.sh",
+        "snippets": [
+            "nvidia-smi --query-gpu=name,memory.used --format=csv",
+            "watch -n 1 nvidia-smi",
+            "python server.py && nvidia-smi",
+            "if ! command -v nvidia-smi; then exit 1; fi",
+        ],
+        "finding": "The validation path depends on nvidia-smi, so it cannot prove GPU visibility on AMD ROCm systems.",
+        "recommendation": "Add an AMD-aware health check that captures rocm-smi or amd-smi output and keeps nvidia-smi only in a CUDA-specific script.",
+    },
+    {
+        "category": "CUDA extension build path",
+        "severity": "high",
+        "file": "setup.py",
+        "snippets": [
+            "from torch.utils.cpp_extension import CUDAExtension\nsetup(ext_modules=[CUDAExtension('kernels', ['kernel.cu'])])",
+            "extra_compile_args={'nvcc': ['-O3', '--use_fast_math']}",
+            "sources=['ops/attention.cpp', 'ops/attention_cuda.cu']",
+            "CUDA_HOME = os.environ['CUDA_HOME']",
+        ],
+        "finding": "The project builds CUDA-specific extensions, which may not compile on ROCm without HIP-compatible kernels or alternate wheels.",
+        "recommendation": "Isolate CUDA extension builds behind backend flags and add a ROCm path using HIP-compatible kernels, prebuilt ROCm wheels, or a documented CPU fallback.",
+    },
+    {
+        "category": "Distributed runtime assumes NCCL/CUDA",
+        "severity": "high",
+        "file": "scripts/train_distributed.sh",
+        "snippets": [
+            "export NCCL_DEBUG=INFO\nexport CUDA_VISIBLE_DEVICES=0,1,2,3\ntorchrun --nproc_per_node=4 train.py",
+            "deepspeed --include localhost:0,1,2,3 train.py",
+            "os.environ['NCCL_P2P_DISABLE']='0'\ninit_process_group(backend='nccl')",
+            "accelerate launch --gpu_ids 0,1,2,3 train.py",
+        ],
+        "finding": "The distributed launch path assumes CUDA/NCCL semantics and needs explicit ROCm validation before MI300X scaling claims.",
+        "recommendation": "Document ROCm distributed environment variables, validate torch.distributed on HIP-backed PyTorch, and keep launch profiles per backend.",
+    },
+    {
+        "category": "CUDA-only attention optimization",
+        "severity": "high",
+        "file": "requirements.txt",
+        "snippets": [
+            "flash-attn==2.6.3 --no-build-isolation",
+            "triton==2.3.1\nxformers==0.0.27.post2",
+            "attn_implementation='flash_attention_2'",
+            "from flash_attn import flash_attn_func",
+        ],
+        "finding": "The workload relies on CUDA-oriented attention optimizations that may fail or behave differently on ROCm.",
+        "recommendation": "Add backend-aware attention configuration and test ROCm-supported alternatives before claiming equivalent performance.",
+    },
+    {
+        "category": "Docker Compose GPU reservation",
+        "severity": "high",
+        "file": "docker-compose.yml",
+        "snippets": [
+            "deploy:\n  resources:\n    reservations:\n      devices:\n        - driver: nvidia\n          count: all",
+            "runtime: nvidia\nenvironment:\n  - NVIDIA_VISIBLE_DEVICES=all",
+            "device_requests:\n  - driver: nvidia\n    capabilities: [gpu]",
+            "command: docker run --runtime=nvidia app",
+        ],
+        "finding": "The Compose/runtime configuration requests NVIDIA devices directly, so it will not map cleanly onto AMD Developer Cloud.",
+        "recommendation": "Create a ROCm Compose profile with AMD device access and backend-specific environment variables instead of reusing NVIDIA reservations.",
+    },
 ]
 
 
@@ -113,6 +178,18 @@ PATCH_CASES = [
     {
         "finding": "Benchmark only prints average latency.",
         "patch": "Add benchmark_rocm.py that records backend, model id, prompt count, tokens/sec, p95 latency, memory, and command provenance.",
+    },
+    {
+        "finding": "Health check runs nvidia-smi.",
+        "patch": "Add scripts/healthcheck-rocm.sh that records rocm-smi or amd-smi output, torch.version.hip, and a small inference request.",
+    },
+    {
+        "finding": "setup.py builds CUDAExtension from .cu files.",
+        "patch": "Add a backend-gated extension build path and document ROCm-safe alternatives instead of forcing CUDAExtension during install.",
+    },
+    {
+        "finding": "docker-compose.yml reserves driver: nvidia.",
+        "patch": "Add compose.rocm.yml with AMD-specific device/env settings and keep the NVIDIA Compose file as a separate profile.",
     },
 ]
 
@@ -148,6 +225,42 @@ BENCHMARK_CASES = [
     {
         "evidence": "The repo claims AMD readiness without logs.",
         "plan": "Require vLLM startup logs, GPU visibility, backend detection output, and one successful completion response before claiming readiness.",
+    },
+    {
+        "evidence": "The repo has distributed launch scripts but no multi-GPU proof.",
+        "plan": "Run one single-GPU smoke test first, then a small multi-GPU torch.distributed check with backend, rank count, memory, and throughput logs.",
+    },
+    {
+        "evidence": "The repo uses FlashAttention and reports only latency.",
+        "plan": "Benchmark with backend-aware attention settings, record the selected attention implementation, and compare latency only after functional parity is proven.",
+    },
+]
+
+
+MEMORY_CASES = [
+    {
+        "conversation": [
+            "Repo Doctor found nvidia-smi in scripts/healthcheck.sh.",
+            "Build Runner said this blocks AMD proof because rocm-smi or amd-smi is needed.",
+            "Report Agent must not claim live AMD validation until logs are captured.",
+        ],
+        "memory": "Store that NVIDIA monitoring commands must be replaced with AMD SMI evidence before the report claims ROCm validation.",
+    },
+    {
+        "conversation": [
+            "Migration Planner proposed deleting CUDA support entirely.",
+            "Build Runner objected because maintainers need dual-backend support.",
+            "Orchestrator chose separate ROCm files and profiles.",
+        ],
+        "memory": "Store that ROCmPilot should preserve CUDA as an optional backend and add separate ROCm paths instead of destructive rewrites.",
+    },
+    {
+        "conversation": [
+            "Benchmark Agent saw estimated MI300X numbers.",
+            "Report Agent asked how to label them.",
+            "Consensus: estimates are static profiles until AMD Developer Cloud logs exist.",
+        ],
+        "memory": "Store that estimated metrics must be labeled as static ROCmPilot profiles and replaced by live AMD logs when available.",
     },
 ]
 
@@ -234,8 +347,33 @@ def benchmark_examples() -> list[dict]:
     return rows
 
 
+def memory_examples() -> list[dict]:
+    rows = []
+    for case in MEMORY_CASES:
+        rows.append(
+            {
+                "task": "memory_agent",
+                "input": {
+                    "conversation": case["conversation"],
+                    "memory_scope": "cross-run ROCm migration memory",
+                },
+                "expected": {
+                    "memory_write": case["memory"],
+                    "reuse_rule": "Recall this memory in later reports or patch plans when the same blocker appears.",
+                },
+            }
+        )
+    return rows
+
+
 def main() -> None:
-    rows = migration_examples() + patch_examples() + report_examples() + benchmark_examples()
+    rows = (
+        migration_examples()
+        + patch_examples()
+        + report_examples()
+        + benchmark_examples()
+        + memory_examples()
+    )
     with OUT_PATH.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=True) + "\n")

@@ -31,6 +31,18 @@ PROMPTS = [
         "must_include": ["fallback", "AMD", "configure"],
         "must_not_include": ["measured on MI300X", "live AMD run completed"],
     },
+    {
+        "name": "nvidia_smi_healthcheck",
+        "prompt": "A repo healthcheck only runs nvidia-smi before starting vLLM. Give the finding and ROCm-safe fix.",
+        "must_include": ["nvidia-smi", "ROCm", "smi"],
+        "must_not_include": ["delete CUDA support", "guaranteed"],
+    },
+    {
+        "name": "memory_boundary",
+        "prompt": "Agents agreed that estimated MI300X numbers are static profiles until AMD logs exist. Write the durable memory.",
+        "must_include": ["estimated", "AMD", "logs"],
+        "must_not_include": ["live measurement", "proven benchmark"],
+    },
 ]
 
 

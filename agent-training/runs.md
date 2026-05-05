@@ -26,3 +26,32 @@ Result: failed at checkpoint sync. Training reached step 40/80, then Trackio cra
 - Max steps: `50`
 
 Result: completed. The run finished all 50 SFT steps and pushed the LoRA adapter, tokenizer, and training arguments to the output model repo.
+
+## 2026-05-05 dataset expansion
+
+- Dataset size: 95 examples
+- Added categories:
+  - NVIDIA monitoring commands such as `nvidia-smi`
+  - CUDA extension builds using `CUDAExtension` or `.cu` sources
+  - distributed launch assumptions around CUDA/NCCL
+  - FlashAttention/Triton/xFormers portability risks
+  - Docker Compose NVIDIA GPU reservations
+  - Memory Agent examples for Synap-style long-context decisions
+- Training script changes:
+  - increased default `MAX_STEPS` to `160`
+  - added eval split when the dataset has at least 50 examples
+  - added checkpointing and Trackio reporting
+  - added `MAX_LENGTH` env control
+
+Recommended next run:
+
+```bash
+hf jobs uv run \
+  --flavor t4-small \
+  --timeout 90m \
+  --secrets HF_TOKEN \
+  --env DATASET_ID=Shivam311/rocmpilot-agent-sft \
+  --env OUTPUT_MODEL=Shivam311/rocmpilot-agent-qwen-lora-v2 \
+  --env MAX_STEPS=160 \
+  agent-training/scripts/train_rocmpilot_sft.py
+```

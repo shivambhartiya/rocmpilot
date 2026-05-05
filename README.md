@@ -231,16 +231,24 @@ Shivam311/rocmpilot
 
 The `agent-training/` folder contains the training path for a more accurate agent:
 
-- `seed-examples.jsonl`: initial supervised examples
+- `seed-examples.jsonl`: 95 supervised seed examples across migration, patch, benchmark, report, and memory-agent tasks
 - `eval-rubric.md`: scoring rubric
+- `scripts/generate_seed_examples.py`: expands synthetic examples for common CUDA-to-ROCm failure modes
 - `scripts/prepare_dataset.py`: converts seed examples into chat SFT format
 - `scripts/train_rocmpilot_sft.py`: LoRA SFT script for Hugging Face Jobs
 - `scripts/evaluate_agent.py`: smoke eval against an OpenAI-compatible endpoint
 
+Regenerate the local seed and preview files:
+
+```bash
+python agent-training/scripts/generate_seed_examples.py
+python agent-training/scripts/prepare_dataset.py
+```
+
 Prepare and push a seed dataset:
 
 ```bash
-uv run agent-training/scripts/prepare_dataset.py \
+python agent-training/scripts/prepare_dataset.py \
   --push \
   --repo-id Shivam311/rocmpilot-agent-sft
 ```
@@ -250,17 +258,18 @@ Launch a small training run on Hugging Face Jobs after confirming paid Jobs acce
 ```bash
 hf jobs uv run \
   --flavor t4-small \
-  --timeout 45m \
+  --timeout 90m \
   --secrets HF_TOKEN \
   --env DATASET_ID=Shivam311/rocmpilot-agent-sft \
-  --env OUTPUT_MODEL=Shivam311/rocmpilot-agent-qwen-lora \
+  --env OUTPUT_MODEL=Shivam311/rocmpilot-agent-qwen-lora-v2 \
+  --env MAX_STEPS=160 \
   agent-training/scripts/train_rocmpilot_sft.py
 ```
 
 Run eval:
 
 ```bash
-uv run agent-training/scripts/evaluate_agent.py
+python agent-training/scripts/evaluate_agent.py
 ```
 
 For a serious version, expand the dataset to at least 200-500 examples from real migration cases before training.
