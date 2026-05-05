@@ -184,6 +184,7 @@ function summarizeContext(
 function synapOptions(): SynapClientOptions {
   return {
     apiKey: process.env.SYNAP_API_KEY,
+    instanceId: process.env.SYNAP_INSTANCE_ID,
     baseUrl: process.env.SYNAP_BASE_URL,
     grpcHost: process.env.SYNAP_GRPC_HOST,
     grpcPort: parseOptionalPort(process.env.SYNAP_GRPC_PORT),
@@ -197,7 +198,7 @@ function synapOptions(): SynapClientOptions {
         console.warn(`Synap ${level}: ${message}`);
       }
     },
-  };
+  } as SynapClientOptions & { instanceId?: string };
 }
 
 async function shutdownClient(client: SynapClient | null) {

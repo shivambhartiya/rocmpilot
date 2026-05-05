@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "synap:setup": "synap-js-sdk setup --sdk-version 0.2.0"
+    "synap:setup": "synap-js-sdk setup --sdk-version 0.1.1"
   },
   "dependencies": {
     "@maximem/synap-js-sdk": "^0.2.4",

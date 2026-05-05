@@ -169,6 +169,7 @@ Optional long-context memory:
 
 ```bash
 SYNAP_API_KEY=your_synap_api_key
+SYNAP_INSTANCE_ID=your_synap_instance_id
 SYNAP_CUSTOMER_ID=rocmpilot-hackathon
 SYNAP_USER_ID=rocmpilot-agent-fleet
 SYNAP_AUTO_SETUP=false
@@ -200,6 +201,7 @@ Set environment variables in Vercel Project Settings:
 - `HF_REPORT_MODEL`
 - `GITHUB_TOKEN` optional
 - `SYNAP_API_KEY` optional
+- `SYNAP_INSTANCE_ID` optional
 - `SYNAP_CUSTOMER_ID` optional
 - `SYNAP_USER_ID` optional
 - `AMD_QWEN_BASE_URL` later
