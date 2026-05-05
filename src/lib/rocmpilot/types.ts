@@ -10,6 +10,17 @@ export type ModelSource = "amd-vllm" | "hf-router" | "fallback";
 
 export type RunTargetType = "sample" | "github";
 
+export type LongContextMemoryStatus = {
+  status: "connected" | "configured" | "fallback" | "not-configured";
+  label: string;
+  provider: "synap" | "local";
+  conversationId: string;
+  scope: string;
+  detail: string;
+  storedItems: number;
+  recalledItems: number;
+};
+
 export type GpuModelStatus = {
   status: "connected" | "fallback" | "not-configured";
   label: string;
@@ -125,6 +136,7 @@ export type RocmRun = {
   logs: string[];
   agentMessages: AgentMessage[];
   agentMemory: AgentMemory[];
+  longContextMemory: LongContextMemoryStatus;
   benchmarks: BenchmarkResult[];
   modelStatus: GpuModelStatus;
 };
@@ -133,4 +145,5 @@ export type ReportResponse = {
   report: string;
   source: ModelSource;
   modelStatus: GpuModelStatus;
+  memoryStatus: LongContextMemoryStatus;
 };

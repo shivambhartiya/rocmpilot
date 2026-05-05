@@ -34,6 +34,7 @@ ROCmPilot turns that migration problem into an agentic workflow that feels like 
 - Produces ROCm-focused findings and patch previews.
 - Shows a five-agent progress timeline.
 - Shows an **Agent War Room** where the task lead asks other agents for input, agents reply to each other, and shared memory records reusable decisions.
+- Persists the agent transcript to **Maximem Synap** long-context memory when `SYNAP_API_KEY` is configured, with local fallback when it is not.
 - Generates terminal-style migration logs.
 - Builds an AMD-readiness benchmark profile.
 - Generates a final report using this backend priority:
@@ -63,7 +64,7 @@ ROCmPilot turns that migration problem into an agentic workflow that feels like 
    - Generates a judge-ready report explaining technical findings, AMD GPU path, business value, and next steps.
    - Can use Hugging Face now and AMD-hosted Qwen later.
 
-### Agent War Room and Memory
+### Agent War Room and Long-Context Memory
 
 Each task has one lead agent, but the lead does not work alone. The lead asks the other agents for objections, validation criteria, benchmark provenance, or report framing. Their discussion is rendered as routed messages such as `Repo Doctor -> Build Runner` and `Migration Planner -> Build Runner`.
 
@@ -74,7 +75,9 @@ The agents also write reusable memory during the run:
 - container split decisions
 - benchmark provenance rules
 
-The current MVP memory is reconstructed from the stateless run timeline so it remains Vercel-safe. A production version can swap this for persistent storage, vector search, or NodeOps-backed memory without changing the dashboard concept.
+When Synap is configured, the Report Agent stores the whole war-room transcript as an `ai-chat-conversation`, retrieves scoped user context, and injects that context into the final report prompt. This lets ROCmPilot remember migration decisions across runs instead of rediscovering the same patterns every session.
+
+If Synap credentials or runtime setup are missing, ROCmPilot falls back to reconstructed local memory and marks the UI as `Synap Memory: Local fallback`. The demo still completes.
 
 ## Architecture
 
@@ -96,6 +99,10 @@ Findings + Patch Previews + Logs + Agent Memory + Benchmark Profile
   v
 Report Agent
   |
+  | optional memory layer
+  v
+Maximem Synap long-context memory -> local fallback memory
+  |
   | priority order
   v
 AMD ROCm/vLLM -> Hugging Face Router -> Static fallback
@@ -112,6 +119,7 @@ The run system is stateless so it works on Vercel serverless functions without a
 - AI Elements for markdown, code, and terminal rendering
 - Hugging Face Inference Router for temporary report generation
 - Hugging Face Jobs/TRL for future LoRA fine-tuning
+- Maximem Synap for persistent long-context agent memory
 - AMD ROCm/vLLM endpoint support for the final compute story
 
 ## Local Development
@@ -134,6 +142,14 @@ npm run lint
 npm run build
 ```
 
+Optional Synap runtime setup for local or worker deployments:
+
+```bash
+npm run synap:setup
+```
+
+The Synap JS SDK uses a Python bridge. Vercel can still deploy the app without this setup because the report route falls back safely when Synap cannot initialize.
+
 ## Environment Variables
 
 Temporary Hugging Face model backend:
@@ -148,6 +164,17 @@ Optional GitHub token for higher public API limits:
 ```bash
 GITHUB_TOKEN=your_github_token
 ```
+
+Optional long-context memory:
+
+```bash
+SYNAP_API_KEY=your_synap_api_key
+SYNAP_CUSTOMER_ID=rocmpilot-hackathon
+SYNAP_USER_ID=rocmpilot-agent-fleet
+SYNAP_AUTO_SETUP=false
+```
+
+Synap uses the default cloud endpoints automatically. Advanced deployments can also set `SYNAP_BASE_URL`, `SYNAP_GRPC_HOST`, `SYNAP_GRPC_PORT`, and `SYNAP_GRPC_TLS`.
 
 Future AMD ROCm/vLLM backend:
 
@@ -172,10 +199,13 @@ Set environment variables in Vercel Project Settings:
 - `HF_TOKEN`
 - `HF_REPORT_MODEL`
 - `GITHUB_TOKEN` optional
+- `SYNAP_API_KEY` optional
+- `SYNAP_CUSTOMER_ID` optional
+- `SYNAP_USER_ID` optional
 - `AMD_QWEN_BASE_URL` later
 - `AMD_QWEN_MODEL` later
 
-The current app does not require a database for the demo flow.
+The current app does not require a database for the demo flow. Synap is optional and the UI will show whether long-context memory is connected or using fallback memory.
 
 ## Deploy as a Hugging Face Space
 

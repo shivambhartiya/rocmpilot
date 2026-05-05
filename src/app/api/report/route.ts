@@ -1,6 +1,9 @@
 import { buildFallbackReport, buildReportPrompt, getModelStatus } from "@/lib/rocmpilot/data";
+import { syncRunMemoryWithSynap } from "@/lib/rocmpilot/synap-memory";
 import type { ReportResponse, RocmRun } from "@/lib/rocmpilot/types";
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
 
 type ChatCompletionResponse = {
   choices?: Array<{
@@ -10,7 +13,7 @@ type ChatCompletionResponse = {
   }>;
 };
 
-async function generateWithAmdQwen(run: RocmRun) {
+async function generateWithAmdQwen(run: RocmRun, longContext: string) {
   const baseUrl = process.env.AMD_QWEN_BASE_URL?.replace(/\/$/, "");
 
   if (!baseUrl) {
@@ -42,7 +45,7 @@ async function generateWithAmdQwen(run: RocmRun) {
         },
         {
           role: "user",
-          content: buildReportPrompt(run),
+          content: buildReportPrompt(run, longContext),
         },
       ],
     }),
@@ -56,7 +59,7 @@ async function generateWithAmdQwen(run: RocmRun) {
   return payload.choices?.[0]?.message?.content?.trim() || null;
 }
 
-async function generateWithHuggingFace(run: RocmRun) {
+async function generateWithHuggingFace(run: RocmRun, longContext: string) {
   if (!process.env.HF_TOKEN) {
     return null;
   }
@@ -80,7 +83,7 @@ async function generateWithHuggingFace(run: RocmRun) {
         },
         {
           role: "user",
-          content: buildReportPrompt(run),
+          content: buildReportPrompt(run, longContext),
         },
       ],
     }),
@@ -96,15 +99,17 @@ async function generateWithHuggingFace(run: RocmRun) {
 
 export async function POST(request: Request) {
   const run = (await request.json()) as RocmRun;
+  const memorySync = await syncRunMemoryWithSynap(run);
 
   try {
-    const report = await generateWithAmdQwen(run);
+    const report = await generateWithAmdQwen(run, memorySync.promptContext);
 
     if (report) {
       const response: ReportResponse = {
         report,
         source: "amd-vllm",
         modelStatus: getModelStatus("amd-vllm"),
+        memoryStatus: memorySync.status,
       };
       return NextResponse.json(response);
     }
@@ -113,13 +118,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const report = await generateWithHuggingFace(run);
+    const report = await generateWithHuggingFace(run, memorySync.promptContext);
 
     if (report) {
       const response: ReportResponse = {
         report,
         source: "hf-router",
         modelStatus: getModelStatus("hf-router"),
+        memoryStatus: memorySync.status,
       };
       return NextResponse.json(response);
     }
@@ -128,9 +134,10 @@ export async function POST(request: Request) {
   }
 
   const response: ReportResponse = {
-    report: buildFallbackReport(run),
+    report: buildFallbackReport(run, memorySync.promptContext),
     source: "fallback",
     modelStatus: getModelStatus("fallback"),
+    memoryStatus: memorySync.status,
   };
 
   return NextResponse.json(response);

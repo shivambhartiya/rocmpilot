@@ -5,6 +5,7 @@ import type {
   BenchmarkResult,
   Finding,
   GpuModelStatus,
+  LongContextMemoryStatus,
   PatchPreview,
   RocmRun,
   RunMode,
@@ -16,6 +17,11 @@ import type {
 } from "./types";
 import { isRealGitHubRepoUrl, parseGitHubRepoUrl } from "./github-url";
 import type { RepoAnalysis } from "./github-scanner";
+import {
+  buildMemoryConversationId,
+  DEFAULT_MEMORY_CUSTOMER_ID,
+  DEFAULT_MEMORY_USER_ID,
+} from "./memory-ids";
 
 const TOTAL_DURATION_MS = 30_000;
 
@@ -776,6 +782,67 @@ export function getModelStatus(source: GpuModelStatus["source"] = "fallback"): G
   };
 }
 
+export function getLongContextMemoryStatus(
+  runId: string,
+  storedItems = 0,
+  recalledItems = 0,
+  source: LongContextMemoryStatus["status"] = process.env.SYNAP_API_KEY ? "configured" : "fallback"
+): LongContextMemoryStatus {
+  const conversationId = buildMemoryConversationId(runId);
+  const customerId = process.env.SYNAP_CUSTOMER_ID ?? DEFAULT_MEMORY_CUSTOMER_ID;
+  const userId = process.env.SYNAP_USER_ID ?? DEFAULT_MEMORY_USER_ID;
+
+  if (source === "connected") {
+    return {
+      status: "connected",
+      label: "Synap Memory: Connected",
+      provider: "synap",
+      conversationId,
+      scope: `${customerId}/${userId}`,
+      detail: "Report Agent stored this run and retrieved scoped long-context memory from Synap.",
+      storedItems,
+      recalledItems,
+    };
+  }
+
+  if (source === "configured") {
+    return {
+      status: "configured",
+      label: "Synap Memory: Ready",
+      provider: "synap",
+      conversationId,
+      scope: `${customerId}/${userId}`,
+      detail: "Synap is configured; the Report Agent will ingest the war-room transcript during report generation.",
+      storedItems,
+      recalledItems,
+    };
+  }
+
+  if (source === "not-configured") {
+    return {
+      status: "not-configured",
+      label: "Synap Memory: Setup needed",
+      provider: "synap",
+      conversationId,
+      scope: `${customerId}/${userId}`,
+      detail: "Set SYNAP_API_KEY and run the Synap JS runtime setup to enable persistent memory.",
+      storedItems,
+      recalledItems,
+    };
+  }
+
+  return {
+    status: "fallback",
+    label: "Synap Memory: Local fallback",
+    provider: "local",
+    conversationId,
+    scope: "current stateless run",
+    detail: "Using reconstructed run memory now; Synap can persist it across sessions once credentials are configured.",
+    storedItems,
+    recalledItems,
+  };
+}
+
 function buildTarget(record: RunRecord, analysis?: RepoAnalysis): RunTarget {
   if (record.targetType === "github" && record.repoUrl) {
     const parsed = parseGitHubRepoUrl(record.repoUrl);
@@ -954,12 +1021,17 @@ export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun
     logs: visibleLogs,
     agentMessages,
     agentMemory,
+    longContextMemory: getLongContextMemoryStatus(
+      record.id,
+      agentMemory.length,
+      agentMessages.filter((message) => message.memoryRefs.length > 0).length
+    ),
     benchmarks: visibleBenchmarks,
     modelStatus: getModelStatus(),
   };
 }
 
-export function buildFallbackReport(run: RocmRun) {
+export function buildFallbackReport(run: RocmRun, longContext?: string) {
   const findingList = run.findings
     .map((finding) => `- **${finding.category}** in \`${finding.file}:${finding.line}\`: ${finding.recommendedFix}`)
     .join("\n");
@@ -981,6 +1053,10 @@ ${findingList || "- Findings are still being prepared."}
 
 ${memoryList || "- Shared memory is still being written by the agents."}
 
+## Long-Context Memory
+
+${longContext || "- Synap memory was not available for this report, so ROCmPilot used the current run's reconstructed local memory."}
+
 ## AMD GPU Usage
 
 - Primary model target: **Qwen/Qwen3-Coder-Next**
@@ -997,7 +1073,7 @@ ROCmPilot reduces the time needed to move inference services away from NVIDIA-on
 Connect \`AMD_QWEN_BASE_URL\` to a live ROCm/vLLM endpoint and rerun the report stage to replace demo metrics with captured MI300X evidence.`;
 }
 
-export function buildReportPrompt(run: RocmRun) {
+export function buildReportPrompt(run: RocmRun, longContext?: string) {
   return `Create a concise hackathon submission report for ROCmPilot.
 
 Product: multi-agent ROCm migration dashboard.
@@ -1015,6 +1091,9 @@ ${run.patches.map((patch) => `- ${patch.file}: ${patch.rationale}`).join("\n")}
 
 Shared memory:
 ${run.agentMemory.map((memory) => `- ${memory.title}: ${memory.solution}`).join("\n")}
+
+Long-context memory from Synap or fallback memory:
+${longContext || "- No long-context memory was available beyond the current run."}
 
 Benchmarks:
 ${run.benchmarks.map((benchmark) => `- ${benchmark.label}: ${benchmark.backend}, ${benchmark.tokensPerSecond} tok/s, p95 ${benchmark.p95LatencyMs}ms, ${benchmark.memoryGb}GB.`).join("\n")}

@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "synap:setup": "synap-js-sdk setup --sdk-version 0.2.0"
   },
   "dependencies": {
+    "@maximem/synap-js-sdk": "^0.2.4",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",

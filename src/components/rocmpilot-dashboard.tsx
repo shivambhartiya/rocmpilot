@@ -44,6 +44,7 @@ import type {
   AgentMessage,
   AgentMessageKind,
   FindingSeverity,
+  LongContextMemoryStatus,
   ReportResponse,
   RocmRun,
   RunStage,
@@ -53,6 +54,7 @@ import {
   BadgeCheck,
   Bot,
   Boxes,
+  BrainCircuit,
   CheckCircle2,
   Cpu,
   FileCode2,
@@ -80,6 +82,13 @@ const statusTone = {
   pending: "border-zinc-800 bg-zinc-950 text-zinc-500",
   running: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
   completed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
+};
+
+const memoryStatusTone: Record<LongContextMemoryStatus["status"], string> = {
+  connected: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
+  configured: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  fallback: "border-amber-500/40 bg-amber-500/10 text-amber-100",
+  "not-configured": "border-zinc-700 bg-zinc-900 text-zinc-300",
 };
 
 const messageKindTone: Record<AgentMessageKind, string> = {
@@ -225,6 +234,14 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
             <Badge variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-200">
               lead: {activeLead}
             </Badge>
+            {run?.longContextMemory && (
+              <Badge
+                variant="outline"
+                className={memoryStatusTone[run.longContextMemory.status]}
+              >
+                {run.longContextMemory.provider === "synap" ? "Synap memory" : "local memory"}
+              </Badge>
+            )}
           </div>
         </div>
         {latestMessage && (
@@ -408,6 +425,7 @@ export function RocmPilotDashboard() {
   }, [generateReport, run]);
 
   const modelStatus = report?.modelStatus ?? run?.modelStatus;
+  const memoryStatus = report?.memoryStatus ?? run?.longContextMemory;
   const completedStages = run?.stages.filter((stage) => stage.status === "completed").length ?? 0;
 
   return (
@@ -770,6 +788,50 @@ export function RocmPilotDashboard() {
                   <p className="leading-6 text-muted-foreground">
                     {modelStatus?.detail ??
                       "The MVP stays demo-safe until an AMD ROCm/vLLM endpoint is available."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BrainCircuit className="size-5 text-rose-200" />
+                  Long-context memory
+                </CardTitle>
+                <CardDescription>Synap context used by the Report Agent.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Badge
+                  variant="outline"
+                  className={memoryStatusTone[memoryStatus?.status ?? "fallback"]}
+                >
+                  {memoryStatus?.label ?? "Synap Memory: Local fallback"}
+                </Badge>
+                <div className="grid gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Provider</p>
+                    <p className="font-medium">{memoryStatus?.provider ?? "local"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Conversation</p>
+                    <p className="break-all font-mono text-xs">
+                      {memoryStatus?.conversationId ?? "created after run starts"}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="font-mono text-lg">{memoryStatus?.storedItems ?? 0}</p>
+                      <p className="text-xs text-muted-foreground">stored</p>
+                    </div>
+                    <div>
+                      <p className="font-mono text-lg">{memoryStatus?.recalledItems ?? 0}</p>
+                      <p className="text-xs text-muted-foreground">recalled</p>
+                    </div>
+                  </div>
+                  <p className="leading-6 text-muted-foreground">
+                    {memoryStatus?.detail ??
+                      "Set SYNAP_API_KEY to persist agent memory across sessions."}
                   </p>
                 </div>
               </CardContent>
