@@ -37,7 +37,7 @@ export const TerminalHeader = ({
 }: TerminalHeaderProps) => (
   <div
     className={cn(
-      "flex items-center justify-between border-zinc-800 border-b px-4 py-2",
+      "flex items-center justify-between border-red-500/20 border-b bg-red-500/5 px-4 py-2",
       className
     )}
     {...props}
@@ -54,7 +54,7 @@ export const TerminalTitle = ({
   ...props
 }: TerminalTitleProps) => (
   <div
-    className={cn("flex items-center gap-2 text-sm text-zinc-400", className)}
+    className={cn("flex items-center gap-2 text-sm text-red-100/80", className)}
     {...props}
   >
     <TerminalIcon className="size-4" />
@@ -77,7 +77,7 @@ export const TerminalStatus = ({
 
   return (
     <div
-      className={cn("flex items-center gap-2 text-xs text-zinc-400", className)}
+    className={cn("flex items-center gap-2 text-xs text-red-100/70", className)}
       {...props}
     >
       {children}
@@ -143,7 +143,7 @@ export const TerminalCopyButton = ({
   return (
     <Button
       className={cn(
-        "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+        "size-7 shrink-0 text-red-100/70 hover:bg-red-500/10 hover:text-red-50",
         className
       )}
       onClick={copyToClipboard}
@@ -172,7 +172,7 @@ export const TerminalClearButton = ({
   return (
     <Button
       className={cn(
-        "size-7 shrink-0 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+        "size-7 shrink-0 text-red-100/70 hover:bg-red-500/10 hover:text-red-50",
         className
       )}
       onClick={onClear}
@@ -214,7 +214,7 @@ export const TerminalContent = ({
         <pre className="whitespace-pre-wrap break-words">
           <Ansi>{output}</Ansi>
           {isStreaming && (
-            <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-zinc-100" />
+            <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-red-100" />
           )}
         </pre>
       )}
@@ -247,7 +247,7 @@ export const Terminal = ({
     <TerminalContext.Provider value={contextValue}>
       <div
         className={cn(
-          "flex flex-col overflow-hidden rounded-lg border bg-zinc-950 text-zinc-100",
+          "flex flex-col overflow-hidden rounded-lg border border-red-500/25 bg-zinc-950 text-zinc-100 shadow-[0_0_28px_rgb(237_28_36_/_0.08)]",
           className
         )}
         {...props}

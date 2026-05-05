@@ -74,39 +74,39 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const severityTone: Record<FindingSeverity, string> = {
   critical: "border-red-500/40 bg-red-500/10 text-red-200",
   high: "border-amber-500/40 bg-amber-500/10 text-amber-100",
-  medium: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  medium: "border-zinc-300/35 bg-zinc-200/10 text-zinc-100",
   low: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
 };
 
 const statusTone = {
   pending: "border-zinc-800 bg-zinc-950 text-zinc-500",
-  running: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  running: "border-red-500/45 bg-red-500/10 text-red-100",
   completed: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
 };
 
 const memoryStatusTone: Record<LongContextMemoryStatus["status"], string> = {
-  connected: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
-  configured: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  connected: "border-red-500/40 bg-red-500/10 text-red-100",
+  configured: "border-red-500/40 bg-red-500/10 text-red-100",
   fallback: "border-amber-500/40 bg-amber-500/10 text-amber-100",
   "not-configured": "border-zinc-700 bg-zinc-900 text-zinc-300",
 };
 
 const messageKindTone: Record<AgentMessageKind, string> = {
-  question: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  question: "border-red-500/40 bg-red-500/10 text-red-100",
   answer: "border-sky-500/40 bg-sky-500/10 text-sky-100",
   challenge: "border-amber-500/40 bg-amber-500/10 text-amber-100",
-  proposal: "border-violet-500/40 bg-violet-500/10 text-violet-100",
+  proposal: "border-orange-500/40 bg-orange-500/10 text-orange-100",
   decision: "border-lime-500/40 bg-lime-500/10 text-lime-100",
   memory: "border-rose-500/40 bg-rose-500/10 text-rose-100",
   consensus: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
 };
 
 const agentDotTone: Record<string, string> = {
-  Orchestrator: "bg-emerald-300",
-  "Repo Doctor": "bg-cyan-300",
-  "Migration Planner": "bg-violet-300",
+  Orchestrator: "bg-red-400",
+  "Repo Doctor": "bg-[#76B900]",
+  "Migration Planner": "bg-red-300",
   "Build Runner": "bg-amber-300",
-  "Benchmark Agent": "bg-sky-300",
+  "Benchmark Agent": "bg-zinc-200",
   "Report Agent": "bg-rose-300",
 };
 
@@ -116,7 +116,7 @@ function StageIcon({ stage }: { stage: RunStage }) {
   }
 
   if (stage.status === "running") {
-    return <Loader2 className="size-4 animate-spin text-cyan-200" />;
+    return <Loader2 className="size-4 animate-spin text-red-200" />;
   }
 
   return <Activity className="size-4 text-zinc-500" />;
@@ -152,7 +152,7 @@ function WarRoomMessage({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold">{message.agent}</p>
           <span className="text-xs text-muted-foreground">to</span>
-          <p className="truncate text-sm font-medium text-cyan-100">{message.toAgent}</p>
+          <p className="truncate text-sm font-medium text-red-100">{message.toAgent}</p>
           <Badge variant="outline" className={messageKindTone[message.kind]}>
             {message.kind}
           </Badge>
@@ -183,7 +183,7 @@ function WarRoomMessage({
               <Badge
                 key={memoryId}
                 variant="outline"
-                className="border-zinc-600 bg-zinc-900/80 text-zinc-200"
+                className="border-red-500/20 bg-zinc-950/80 text-zinc-200"
               >
                 memory: {memoryById.get(memoryId)?.title ?? memoryId}
               </Badge>
@@ -211,7 +211,7 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Activity className="size-5 text-cyan-200" />
+              <Activity className="size-5 text-red-200" />
               Agent War Room
             </CardTitle>
             <CardDescription>
@@ -223,15 +223,15 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
               variant="outline"
               className={
                 run?.status === "running"
-                  ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100"
+                  ? "border-red-500/40 bg-red-500/10 text-red-100"
                   : run?.status === "completed"
                     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                    : "border-zinc-700 bg-zinc-900 text-zinc-300"
+                    : "border-zinc-700 bg-zinc-950 text-zinc-300"
               }
             >
               {run?.status === "running" ? "live room" : run?.status === "completed" ? "consensus" : "standby"}
             </Badge>
-            <Badge variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-200">
+            <Badge variant="outline" className="border-zinc-700 bg-zinc-950 text-zinc-200">
               lead: {activeLead}
             </Badge>
             {run?.longContextMemory && (
@@ -245,11 +245,11 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
           </div>
         </div>
         {latestMessage && (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm leading-6 text-emerald-50">
+          <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm leading-6 text-red-50">
             <span className="font-medium">
               {latestMessage.agent} to {latestMessage.toAgent}:
             </span>{" "}
-            <span className="text-emerald-100/90">{latestMessage.message}</span>
+            <span className="text-red-100/90">{latestMessage.message}</span>
           </div>
         )}
       </CardHeader>
@@ -429,28 +429,49 @@ export function RocmPilotDashboard() {
   const completedStages = run?.stages.filter((stage) => stage.status === "completed").length ?? 0;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex w-full max-w-none flex-col gap-5 px-4 py-5 sm:px-5 lg:px-6">
-        <section className="grid gap-5 border-b border-border pb-5 xl:grid-cols-[minmax(280px,0.55fr)_minmax(0,1fr)] xl:items-end">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-100">
+    <main className="rocmpilot-shell min-h-screen overflow-x-hidden bg-background text-foreground">
+      <div className="mx-auto flex w-full max-w-none min-w-0 flex-col gap-5 px-4 py-5 sm:px-5 lg:px-6">
+        <section className="grid min-w-0 gap-5 border-b border-border pb-5 xl:grid-cols-[minmax(280px,0.55fr)_minmax(0,1fr)] xl:items-end">
+          <div className="min-w-0 space-y-3">
+            <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 sm:flex sm:flex-wrap sm:items-center">
+              <Badge variant="outline" className="w-full justify-start border-red-500/45 bg-red-500/10 text-red-100 sm:w-fit sm:justify-center">
                 Track 1
               </Badge>
-              <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-100">
+              <Badge variant="outline" className="w-full justify-start border-red-500/45 bg-red-500/10 text-red-100 sm:w-fit sm:justify-center">
                 ROCm + vLLM
               </Badge>
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-100">
+              <Badge variant="outline" className="w-full justify-start border-amber-500/40 bg-amber-500/10 text-amber-100 sm:w-fit sm:justify-center">
                 Qwen3-Coder-Next
+              </Badge>
+              <Badge variant="outline" className="w-full justify-start border-[#76B900]/45 bg-[#76B900]/10 text-[#d7ff9a] sm:w-fit sm:justify-center">
+                CUDA to ROCm
               </Badge>
             </div>
             <div>
               <h1 className="text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
                 ROCmPilot
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              <p className="mt-2 max-w-full text-sm leading-6 text-muted-foreground sm:max-w-3xl">
                 Multi-agent ROCm migration cockpit for PyTorch and vLLM workloads.
               </p>
+            </div>
+            <div className="migration-ribbon rounded-lg p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-normal sm:text-xs">
+                  <span className="rounded-md border border-[#76B900]/45 bg-[#76B900]/10 px-2 py-1 text-[#d7ff9a]">
+                    NVIDIA/CUDA assumptions
+                  </span>
+                  <span className="text-muted-foreground">being audited into</span>
+                  <span className="rounded-md border border-red-500/45 bg-red-500/10 px-2 py-1 text-red-100">
+                    AMD ROCm readiness
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>theme migration</span>
+                  <span className="migration-track h-1.5 w-20 rounded-full sm:w-24" />
+                  <span className="text-red-100">settling on AMD</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -521,7 +542,7 @@ export function RocmPilotDashboard() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-xl">
-                      <Bot className="size-5 text-cyan-200" />
+                      <Bot className="size-5 text-red-200" />
                       Agent run
                     </CardTitle>
                     <CardDescription>
@@ -534,9 +555,9 @@ export function RocmPilotDashboard() {
                     variant="outline"
                     className={
                       run?.status === "completed"
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                        : run?.status === "running"
-                          ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                      : run?.status === "running"
+                          ? "border-red-500/40 bg-red-500/10 text-red-100"
                           : "border-zinc-700 bg-zinc-900 text-zinc-300"
                     }
                   >
@@ -580,7 +601,7 @@ export function RocmPilotDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">
-                  <ShieldCheck className="size-5 text-emerald-200" />
+                  <ShieldCheck className="size-5 text-red-200" />
                   Migration findings
                 </CardTitle>
                 <CardDescription>CUDA assumptions, ROCm blockers, and recommended fixes.</CardDescription>
@@ -756,7 +777,7 @@ export function RocmPilotDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Cpu className="size-5 text-emerald-200" />
+                  <Cpu className="size-5 text-red-200" />
                   GPU model status
                 </CardTitle>
                 <CardDescription>Qwen endpoint used by the Report Agent.</CardDescription>
@@ -766,9 +787,9 @@ export function RocmPilotDashboard() {
                   variant="outline"
                   className={
                     modelStatus?.status === "connected"
-                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                      ? "border-red-500/40 bg-red-500/10 text-red-100"
                       : modelStatus?.status === "not-configured"
-                        ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100"
+                        ? "border-red-500/40 bg-red-500/10 text-red-100"
                         : "border-amber-500/40 bg-amber-500/10 text-amber-100"
                   }
                 >
@@ -780,7 +801,7 @@ export function RocmPilotDashboard() {
                     <span>{modelStatus?.model ?? "Qwen/Qwen3-Coder-Next"}</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <Zap className="mt-0.5 size-4 text-cyan-200" />
+                    <Zap className="mt-0.5 size-4 text-red-200" />
                     <span className="break-all text-muted-foreground">
                       {modelStatus?.endpoint ?? "Set AMD_QWEN_BASE_URL"}
                     </span>
@@ -840,7 +861,7 @@ export function RocmPilotDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Gauge className="size-5 text-cyan-200" />
+                  <Gauge className="size-5 text-red-200" />
                   Benchmark profile
                 </CardTitle>
                 <CardDescription>Demo metrics for the submission walkthrough.</CardDescription>
@@ -894,7 +915,7 @@ export function RocmPilotDashboard() {
                   <span>AMD GPU story through ROCm/vLLM Qwen model serving.</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <TerminalSquare className="mt-0.5 size-4 text-cyan-200" />
+                  <TerminalSquare className="mt-0.5 size-4 text-red-200" />
                   <span>Demo remains reliable without credentials, then upgrades with live endpoint logs.</span>
                 </div>
               </CardContent>
