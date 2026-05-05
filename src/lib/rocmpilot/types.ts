@@ -66,15 +66,38 @@ export type BenchmarkResult = {
   costNote: string;
 };
 
-export type AgentMessageKind = "signal" | "challenge" | "proposal" | "consensus";
+export type AgentMessageKind =
+  | "question"
+  | "answer"
+  | "challenge"
+  | "proposal"
+  | "decision"
+  | "memory"
+  | "consensus";
 
 export type AgentMessage = {
   id: string;
   agent: string;
+  toAgent: string;
   role: string;
+  task: string;
+  leadAgent: string;
   kind: AgentMessageKind;
   message: string;
+  replyToId?: string;
+  memoryRefs: string[];
   createdAt: string;
+};
+
+export type AgentMemory = {
+  id: string;
+  title: string;
+  scope: string;
+  learnedFromAgent: string;
+  summary: string;
+  solution: string;
+  createdAt: string;
+  usedBy: string[];
 };
 
 export type RunTarget = {
@@ -101,6 +124,7 @@ export type RocmRun = {
   patches: PatchPreview[];
   logs: string[];
   agentMessages: AgentMessage[];
+  agentMemory: AgentMemory[];
   benchmarks: BenchmarkResult[];
   modelStatus: GpuModelStatus;
 };

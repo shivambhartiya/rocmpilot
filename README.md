@@ -33,6 +33,7 @@ ROCmPilot turns that migration problem into an agentic workflow that feels like 
 - Detects CUDA/NVIDIA assumptions.
 - Produces ROCm-focused findings and patch previews.
 - Shows a five-agent progress timeline.
+- Shows an **Agent War Room** where the task lead asks other agents for input, agents reply to each other, and shared memory records reusable decisions.
 - Generates terminal-style migration logs.
 - Builds an AMD-readiness benchmark profile.
 - Generates a final report using this backend priority:
@@ -62,6 +63,19 @@ ROCmPilot turns that migration problem into an agentic workflow that feels like 
    - Generates a judge-ready report explaining technical findings, AMD GPU path, business value, and next steps.
    - Can use Hugging Face now and AMD-hosted Qwen later.
 
+### Agent War Room and Memory
+
+Each task has one lead agent, but the lead does not work alone. The lead asks the other agents for objections, validation criteria, benchmark provenance, or report framing. Their discussion is rendered as routed messages such as `Repo Doctor -> Build Runner` and `Migration Planner -> Build Runner`.
+
+The agents also write reusable memory during the run:
+
+- device resolution patterns
+- ROCm acceptance checks
+- container split decisions
+- benchmark provenance rules
+
+The current MVP memory is reconstructed from the stateless run timeline so it remains Vercel-safe. A production version can swap this for persistent storage, vector search, or NodeOps-backed memory without changing the dashboard concept.
+
 ## Architecture
 
 ```text
@@ -76,7 +90,7 @@ Stateless Run ID
 Repo Doctor + GitHub Scanner
   |
   v
-Findings + Patch Previews + Logs + Benchmark Profile
+Findings + Patch Previews + Logs + Agent Memory + Benchmark Profile
   |
   | POST /api/report
   v

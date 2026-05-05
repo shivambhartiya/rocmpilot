@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { SAMPLE_REPOS } from "@/lib/rocmpilot/data";
 import type {
+  AgentMemory,
   AgentMessage,
   AgentMessageKind,
   FindingSeverity,
@@ -82,9 +83,12 @@ const statusTone = {
 };
 
 const messageKindTone: Record<AgentMessageKind, string> = {
-  signal: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  question: "border-cyan-500/40 bg-cyan-500/10 text-cyan-100",
+  answer: "border-sky-500/40 bg-sky-500/10 text-sky-100",
   challenge: "border-amber-500/40 bg-amber-500/10 text-amber-100",
   proposal: "border-violet-500/40 bg-violet-500/10 text-violet-100",
+  decision: "border-lime-500/40 bg-lime-500/10 text-lime-100",
+  memory: "border-rose-500/40 bg-rose-500/10 text-rose-100",
   consensus: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100",
 };
 
@@ -121,7 +125,13 @@ function formatTime(value: string | undefined) {
   }).format(new Date(value));
 }
 
-function WarRoomMessage({ message }: { message: AgentMessage }) {
+function WarRoomMessage({
+  message,
+  memoryById,
+}: {
+  message: AgentMessage;
+  memoryById: Map<string, AgentMemory>;
+}) {
   return (
     <div className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 rounded-lg border border-border/70 bg-background/60 p-3">
       <div className="relative mt-1 flex size-7 items-center justify-center rounded-full border border-border bg-card">
@@ -132,23 +142,59 @@ function WarRoomMessage({ message }: { message: AgentMessage }) {
       <div className="min-w-0 space-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p className="truncate text-sm font-semibold">{message.agent}</p>
+          <span className="text-xs text-muted-foreground">to</span>
+          <p className="truncate text-sm font-medium text-cyan-100">{message.toAgent}</p>
           <Badge variant="outline" className={messageKindTone[message.kind]}>
             {message.kind}
           </Badge>
+          {message.leadAgent === message.agent && (
+            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-100">
+              lead
+            </Badge>
+          )}
           <span className="font-mono text-[11px] text-muted-foreground">
             {formatTime(message.createdAt)}
           </span>
         </div>
-        <p className="text-xs leading-5 text-muted-foreground">{message.role}</p>
+        <div className="flex flex-wrap items-center gap-2 text-xs leading-5 text-muted-foreground">
+          <span>{message.role}</span>
+          <span>/</span>
+          <span>{message.task}</span>
+          {message.replyToId && (
+            <>
+              <span>/</span>
+              <span>replying to earlier message</span>
+            </>
+          )}
+        </div>
         <p className="break-words text-sm leading-6 text-foreground">{message.message}</p>
+        {message.memoryRefs.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {message.memoryRefs.map((memoryId) => (
+              <Badge
+                key={memoryId}
+                variant="outline"
+                className="border-zinc-600 bg-zinc-900/80 text-zinc-200"
+              >
+                memory: {memoryById.get(memoryId)?.title ?? memoryId}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function AgentWarRoom({ run }: { run: RocmRun | null }) {
-  const messages = run?.agentMessages ?? [];
+  const messages = useMemo(() => run?.agentMessages ?? [], [run?.agentMessages]);
+  const memory = useMemo(() => run?.agentMemory ?? [], [run?.agentMemory]);
   const latestMessage = messages[messages.length - 1];
+  const activeLead = latestMessage?.leadAgent ?? "No lead assigned";
+  const memoryById = useMemo(
+    () => new Map(memory.map((entry) => [entry.id, entry])),
+    [memory]
+  );
 
   return (
     <Card>
@@ -160,35 +206,78 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
               Agent War Room
             </CardTitle>
             <CardDescription>
-              Shared monitor where the agents debate findings, challenge assumptions, and converge on a plan.
+              Lead-led discussion with replies, objections, and shared memory the agents reuse later.
             </CardDescription>
           </div>
-          <Badge
-            variant="outline"
-            className={
-              run?.status === "running"
-                ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100"
-                : run?.status === "completed"
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-300"
-            }
-          >
-            {run?.status === "running" ? "live room" : run?.status === "completed" ? "consensus" : "standby"}
-          </Badge>
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant="outline"
+              className={
+                run?.status === "running"
+                  ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-100"
+                  : run?.status === "completed"
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-300"
+              }
+            >
+              {run?.status === "running" ? "live room" : run?.status === "completed" ? "consensus" : "standby"}
+            </Badge>
+            <Badge variant="outline" className="border-zinc-700 bg-zinc-900 text-zinc-200">
+              lead: {activeLead}
+            </Badge>
+          </div>
         </div>
         {latestMessage && (
           <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm leading-6 text-emerald-50">
-            <span className="font-medium">{latestMessage.agent}:</span>{" "}
+            <span className="font-medium">
+              {latestMessage.agent} to {latestMessage.toAgent}:
+            </span>{" "}
             <span className="text-emerald-100/90">{latestMessage.message}</span>
           </div>
         )}
       </CardHeader>
       <CardContent>
         {messages.length ? (
-          <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
-            {messages.map((message) => (
-              <WarRoomMessage key={message.id} message={message} />
-            ))}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.75fr)]">
+            <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
+              {messages.map((message) => (
+                <WarRoomMessage key={message.id} message={message} memoryById={memoryById} />
+              ))}
+            </div>
+            <div className="rounded-lg border border-border bg-background/50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">Shared memory</p>
+                <Badge variant="outline" className="border-rose-500/40 bg-rose-500/10 text-rose-100">
+                  {memory.length} stored
+                </Badge>
+              </div>
+              <div className="mt-3 max-h-[470px] space-y-3 overflow-y-auto pr-1">
+                {memory.length ? (
+                  memory.map((entry) => (
+                    <div key={entry.id} className="rounded-lg border border-border/70 bg-card p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium">{entry.title}</p>
+                        <Badge variant="outline">{entry.scope}</Badge>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        learned from {entry.learnedFromAgent} at {formatTime(entry.createdAt)}
+                      </p>
+                      <p className="mt-3 text-sm leading-6">{entry.summary}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{entry.solution}</p>
+                      {entry.usedBy.length > 0 && (
+                        <p className="mt-3 text-xs text-emerald-100">
+                          reused by {Array.from(new Set(entry.usedBy)).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    Memory appears when agents store a blocker, solution, or evidence rule.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid gap-3 rounded-lg border border-dashed border-border p-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,6 +1,7 @@
 import type {
   AgentMessage,
   AgentMessageKind,
+  AgentMemory,
   BenchmarkResult,
   Finding,
   GpuModelStatus,
@@ -16,7 +17,7 @@ import type {
 import { isRealGitHubRepoUrl, parseGitHubRepoUrl } from "./github-url";
 import type { RepoAnalysis } from "./github-scanner";
 
-const TOTAL_DURATION_MS = 27_500;
+const TOTAL_DURATION_MS = 30_000;
 
 const STAGES: Array<Omit<RunStage, "status" | "progress" | "startedAt" | "completedAt"> & {
   durationMs: number;
@@ -226,8 +227,13 @@ const LOGS = [
 type MessageBlueprint = {
   offsetMs: number;
   agent: string;
+  toAgent: string;
   role: string;
+  task: string;
+  leadAgent: string;
   kind: AgentMessageKind;
+  replyToOffsetMs?: number;
+  memoryRefs?: string[];
   message: (context: {
     target: RunTarget;
     sample: SampleRepo;
@@ -240,113 +246,370 @@ const WAR_ROOM_MESSAGES: MessageBlueprint[] = [
   {
     offsetMs: 1_200,
     agent: "Orchestrator",
+    toAgent: "Repo Doctor",
     role: "Run coordinator",
-    kind: "signal",
+    task: "Repo compatibility scan",
+    leadAgent: "Repo Doctor",
+    kind: "question",
     message: ({ target }) =>
-      `Opening shared migration room for ${target.label}. Every agent should cite evidence before proposing changes.`,
+      `You are lead for the first task on ${target.label}. Ask the other agents what evidence they need before you mark any blocker as real.`,
   },
   {
-    offsetMs: 3_000,
+    offsetMs: 2_600,
     agent: "Repo Doctor",
+    toAgent: "Build Runner",
     role: "Compatibility scout",
-    kind: "signal",
+    task: "Repo compatibility scan",
+    leadAgent: "Repo Doctor",
+    kind: "question",
+    replyToOffsetMs: 1_200,
     message: ({ target }) =>
       target.type === "github"
-        ? `Live scan is checking ${target.scannedFiles || "the selected"} repo files for CUDA, NVIDIA images, and GPU runtime assumptions.`
-        : "Curated scan is checking Docker, vLLM launch scripts, PyTorch device paths, and benchmark coverage.",
+        ? `I am scanning ${target.scannedFiles || "the selected"} files. Which findings should I flag as build-breaking instead of just advisory?`
+        : "I am scanning Docker, vLLM scripts, PyTorch device paths, and benchmarks. Which findings should I flag as build-breaking instead of advisory?",
   },
   {
-    offsetMs: 5_400,
-    agent: "Repo Doctor",
-    role: "Compatibility scout",
-    kind: "signal",
-    message: ({ findings }) =>
-      findings[0]
-        ? `First blocker: ${findings[0].category} in ${findings[0].file}:${findings[0].line}.`
-        : "No hard blocker yet, but I am keeping the scan focused on vendor-locked runtime paths.",
-  },
-  {
-    offsetMs: 7_300,
-    agent: "Migration Planner",
-    role: "Patch strategist",
-    kind: "proposal",
-    message: ({ findings }) =>
-      findings[0]
-        ? `I will turn that into a backend-aware migration step: ${findings[0].recommendedFix}`
-        : "I will draft a backend-aware plan that keeps CUDA and ROCm paths explicit instead of hidden in environment assumptions.",
-  },
-  {
-    offsetMs: 9_300,
+    offsetMs: 3_700,
     agent: "Build Runner",
+    toAgent: "Repo Doctor",
     role: "Skeptical validator",
-    kind: "challenge",
+    task: "Repo compatibility scan",
+    leadAgent: "Repo Doctor",
+    kind: "answer",
+    replyToOffsetMs: 2_600,
     message:
       () =>
-        "Before we call this ROCm-ready, I need container evidence, import checks, and an OpenAI-compatible vLLM smoke path.",
+        "Treat container base images, hardcoded device selection, and missing smoke commands as build-breaking. Those decide whether the workload even starts on ROCm.",
   },
   {
-    offsetMs: 11_600,
+    offsetMs: 5_200,
+    agent: "Repo Doctor",
+    toAgent: "Migration Planner",
+    role: "Compatibility scout",
+    task: "Repo compatibility scan",
+    leadAgent: "Repo Doctor",
+    kind: "question",
+    replyToOffsetMs: 3_700,
+    message: ({ findings }) =>
+      findings[0]
+        ? `I found ${findings[0].category} in ${findings[0].file}:${findings[0].line}. Can you design the safest migration step for this first?`
+        : "I have no hard blocker yet. Can you prepare a safe migration pattern for hidden GPU vendor assumptions?",
+  },
+  {
+    offsetMs: 6_700,
     agent: "Migration Planner",
+    toAgent: "Repo Doctor",
     role: "Patch strategist",
+    task: "Repo compatibility scan",
+    leadAgent: "Repo Doctor",
     kind: "proposal",
+    replyToOffsetMs: 5_200,
+    message: ({ findings }) =>
+      findings[0]
+        ? `Yes. First migration step: ${findings[0].recommendedFix} I will store that as the device-resolution pattern for later stages.`
+        : "Yes. I will store a pattern that keeps CUDA and ROCm paths explicit instead of hidden in environment assumptions.",
+  },
+  {
+    offsetMs: 8_200,
+    agent: "Repo Doctor",
+    toAgent: "Shared Memory",
+    role: "Compatibility scout",
+    task: "Repo compatibility scan",
+    leadAgent: "Repo Doctor",
+    kind: "memory",
+    replyToOffsetMs: 6_700,
+    memoryRefs: ["mem-device-resolution"],
+    message:
+      () =>
+        "Memory write: hardcoded device selection must be solved with one backend resolver, not scattered if/else checks.",
+  },
+  {
+    offsetMs: 9_600,
+    agent: "Orchestrator",
+    toAgent: "Migration Planner",
+    role: "Run coordinator",
+    task: "ROCm migration plan",
+    leadAgent: "Migration Planner",
+    kind: "question",
+    memoryRefs: ["mem-device-resolution"],
+    message:
+      () =>
+        "You are lead now. Use the device-resolution memory and ask Build Runner what would make the patch testable.",
+  },
+  {
+    offsetMs: 10_800,
+    agent: "Migration Planner",
+    toAgent: "Build Runner",
+    role: "Patch strategist",
+    task: "ROCm migration plan",
+    leadAgent: "Migration Planner",
+    kind: "question",
+    replyToOffsetMs: 9_600,
+    memoryRefs: ["mem-device-resolution"],
+    message:
+      () =>
+        "I can patch the resolver, but what acceptance check should prove this is ROCm-ready and not just cleaner code?",
+  },
+  {
+    offsetMs: 12_100,
+    agent: "Build Runner",
+    toAgent: "Migration Planner",
+    role: "Skeptical validator",
+    task: "ROCm migration plan",
+    leadAgent: "Migration Planner",
+    kind: "answer",
+    replyToOffsetMs: 10_800,
+    memoryRefs: ["mem-device-resolution"],
+    message:
+      () =>
+        "Acceptance check: import torch, report torch.version.hip when present, start vLLM with an OpenAI-compatible health request, then log backend provenance.",
+  },
+  {
+    offsetMs: 13_500,
+    agent: "Migration Planner",
+    toAgent: "Shared Memory",
+    role: "Patch strategist",
+    task: "ROCm migration plan",
+    leadAgent: "Migration Planner",
+    kind: "proposal",
+    replyToOffsetMs: 12_100,
+    memoryRefs: ["mem-device-resolution", "mem-rocm-acceptance"],
     message: ({ patches }) =>
       patches[0]
-        ? `Patch candidate is ready for ${patches[0].file}. It centralizes the risky vendor decision instead of scattering it across inference code.`
-        : "Patch candidate is ready: separate device resolution from model-serving logic so ROCm can be validated cleanly.",
+        ? `Patch candidate for ${patches[0].file} is ready, and I am storing Build Runner's acceptance check with it.`
+        : "Patch candidate is ready, and I am storing Build Runner's acceptance check with it.",
   },
   {
-    offsetMs: 14_200,
-    agent: "Build Runner",
-    role: "Skeptical validator",
-    kind: "challenge",
-    message:
-      () =>
-        "The plan is useful, but the Docker path must be named separately. A CUDA image with ROCm notes is still a deployment trap.",
-  },
-  {
-    offsetMs: 16_400,
-    agent: "Benchmark Agent",
-    role: "Evidence analyst",
-    kind: "signal",
-    message:
-      () =>
-        "I am tracking readiness as bootability, tokens/sec, p95 latency, memory footprint, and whether the report model can run behind vLLM.",
-  },
-  {
-    offsetMs: 18_900,
-    agent: "Migration Planner",
-    role: "Patch strategist",
-    kind: "proposal",
-    message:
-      () =>
-        "Consensus direction: prioritize runtime bootability first, then serving flags, then benchmark instrumentation.",
-  },
-  {
-    offsetMs: 21_300,
-    agent: "Report Agent",
-    role: "Submission narrator",
-    kind: "signal",
-    message:
-      () =>
-        "I am converting the room decisions into a judge-readable story: what broke, what changed, where AMD GPUs enter, and why a company would pay for this.",
-  },
-  {
-    offsetMs: 24_200,
-    agent: "Benchmark Agent",
-    role: "Evidence analyst",
-    kind: "challenge",
-    message:
-      () =>
-        "Mark demo metrics clearly until AMD Developer Cloud proof is attached. That honesty makes the GPU story stronger, not weaker.",
-  },
-  {
-    offsetMs: 27_000,
+    offsetMs: 15_200,
     agent: "Orchestrator",
+    toAgent: "Build Runner",
     role: "Run coordinator",
-    kind: "consensus",
+    task: "Build and smoke tests",
+    leadAgent: "Build Runner",
+    kind: "question",
+    memoryRefs: ["mem-device-resolution", "mem-rocm-acceptance"],
     message:
       () =>
-        "Final consensus: ship a ROCm readiness report, patch previews, and an AMD/vLLM validation checklist. Next run should replace estimates with MI300X logs.",
+        "You are lead for validation. Look back at memory before challenging the plan: what can still fail later?",
+  },
+  {
+    offsetMs: 16_500,
+    agent: "Build Runner",
+    toAgent: "Migration Planner",
+    role: "Skeptical validator",
+    task: "Build and smoke tests",
+    leadAgent: "Build Runner",
+    kind: "challenge",
+    replyToOffsetMs: 15_200,
+    memoryRefs: ["mem-rocm-acceptance"],
+    message:
+      () =>
+        "I checked the memory. Device resolution is covered, but the Docker path can still fail. A CUDA image with ROCm notes is still a deployment trap.",
+  },
+  {
+    offsetMs: 17_800,
+    agent: "Migration Planner",
+    toAgent: "Build Runner",
+    role: "Patch strategist",
+    task: "Build and smoke tests",
+    leadAgent: "Build Runner",
+    kind: "answer",
+    replyToOffsetMs: 16_500,
+    message:
+      () =>
+        "Agreed. I will keep Dockerfile.rocm separate and avoid pretending the existing CUDA container is portable.",
+  },
+  {
+    offsetMs: 19_000,
+    agent: "Build Runner",
+    toAgent: "Shared Memory",
+    role: "Skeptical validator",
+    task: "Build and smoke tests",
+    leadAgent: "Build Runner",
+    kind: "memory",
+    replyToOffsetMs: 17_800,
+    memoryRefs: ["mem-container-split"],
+    message:
+      () =>
+        "Memory write: ROCm validation needs a separate container path plus a smoke command, not just migration notes in README.",
+  },
+  {
+    offsetMs: 20_300,
+    agent: "Orchestrator",
+    toAgent: "Benchmark Agent",
+    role: "Run coordinator",
+    task: "MI300X readiness benchmark",
+    leadAgent: "Benchmark Agent",
+    kind: "question",
+    memoryRefs: ["mem-rocm-acceptance", "mem-container-split"],
+    message:
+      () =>
+        "You are lead for measurement. Use the earlier memories and ask what numbers are safe to show before AMD access is connected.",
+  },
+  {
+    offsetMs: 21_500,
+    agent: "Benchmark Agent",
+    toAgent: "Report Agent",
+    role: "Evidence analyst",
+    task: "MI300X readiness benchmark",
+    leadAgent: "Benchmark Agent",
+    kind: "question",
+    replyToOffsetMs: 20_300,
+    memoryRefs: ["mem-rocm-acceptance", "mem-container-split"],
+    message:
+      () =>
+        "I can show estimated tokens/sec, p95 latency, memory, and bootability. How should I label estimates so the story stays credible?",
+  },
+  {
+    offsetMs: 22_700,
+    agent: "Report Agent",
+    toAgent: "Benchmark Agent",
+    role: "Submission narrator",
+    task: "MI300X readiness benchmark",
+    leadAgent: "Benchmark Agent",
+    kind: "answer",
+    replyToOffsetMs: 21_500,
+    message:
+      () =>
+        "Label estimates as a static ROCmPilot profile and reserve final proof for AMD Developer Cloud logs. Judges trust explicit provenance.",
+  },
+  {
+    offsetMs: 24_000,
+    agent: "Benchmark Agent",
+    toAgent: "Shared Memory",
+    role: "Evidence analyst",
+    task: "MI300X readiness benchmark",
+    leadAgent: "Benchmark Agent",
+    kind: "memory",
+    replyToOffsetMs: 22_700,
+    memoryRefs: ["mem-metric-provenance"],
+    message:
+      () =>
+        "Memory write: estimated metrics are acceptable only when labeled with provenance and paired with the exact AMD proof still needed.",
+  },
+  {
+    offsetMs: 25_200,
+    agent: "Orchestrator",
+    toAgent: "Report Agent",
+    role: "Run coordinator",
+    task: "Judge-ready report",
+    leadAgent: "Report Agent",
+    kind: "question",
+    memoryRefs: ["mem-device-resolution", "mem-container-split", "mem-metric-provenance"],
+    message:
+      () =>
+        "You are lead for the final report. Read the shared memory first, then ask if anyone disagrees with the submission story.",
+  },
+  {
+    offsetMs: 26_000,
+    agent: "Report Agent",
+    toAgent: "All agents",
+    role: "Submission narrator",
+    task: "Judge-ready report",
+    leadAgent: "Report Agent",
+    kind: "question",
+    replyToOffsetMs: 25_200,
+    memoryRefs: ["mem-device-resolution", "mem-container-split", "mem-metric-provenance"],
+    message:
+      () =>
+        "I read the memories. Final story: find CUDA locks, create ROCm patch path, validate container/smoke tests, show metric provenance. Any objections?",
+  },
+  {
+    offsetMs: 26_800,
+    agent: "Build Runner",
+    toAgent: "Report Agent",
+    role: "Skeptical validator",
+    task: "Judge-ready report",
+    leadAgent: "Report Agent",
+    kind: "answer",
+    replyToOffsetMs: 26_000,
+    memoryRefs: ["mem-container-split"],
+    message:
+      () =>
+        "No objection if the report says validation is complete for the demo path and pending for live MI300X logs.",
+  },
+  {
+    offsetMs: 27_400,
+    agent: "Benchmark Agent",
+    toAgent: "Report Agent",
+    role: "Evidence analyst",
+    task: "Judge-ready report",
+    leadAgent: "Report Agent",
+    kind: "answer",
+    replyToOffsetMs: 26_000,
+    memoryRefs: ["mem-metric-provenance"],
+    message:
+      () =>
+        "No objection if every metric names its source. I want the next live run to overwrite estimates with AMD SMI and vLLM logs.",
+  },
+  {
+    offsetMs: 28_200,
+    agent: "Orchestrator",
+    toAgent: "All agents",
+    role: "Run coordinator",
+    task: "Judge-ready report",
+    leadAgent: "Report Agent",
+    kind: "consensus",
+    replyToOffsetMs: 27_400,
+    memoryRefs: ["mem-device-resolution", "mem-container-split", "mem-metric-provenance"],
+    message:
+      () =>
+        "Consensus stored: ship a ROCm readiness report, patch previews, shared discussion memory, and an AMD/vLLM validation checklist. Next run should replace estimates with MI300X logs.",
+  },
+];
+
+type MemoryBlueprint = {
+  offsetMs: number;
+  id: string;
+  title: string;
+  scope: string;
+  learnedFromAgent: string;
+  summary: (context: { findings: Finding[]; patches: PatchPreview[] }) => string;
+  solution: string;
+};
+
+const WAR_ROOM_MEMORY: MemoryBlueprint[] = [
+  {
+    offsetMs: 8_200,
+    id: "mem-device-resolution",
+    title: "Device resolution pattern",
+    scope: "Runtime compatibility",
+    learnedFromAgent: "Repo Doctor",
+    summary: ({ findings }) =>
+      findings[0]
+        ? `${findings[0].category} should be handled once in a resolver instead of repeated across inference code.`
+        : "GPU backend detection should be handled once in a resolver instead of repeated across inference code.",
+    solution: "Create a backend-aware resolver that accepts HIP-backed PyTorch as CUDA-compatible and records backend provenance.",
+  },
+  {
+    offsetMs: 13_500,
+    id: "mem-rocm-acceptance",
+    title: "ROCm acceptance checks",
+    scope: "Build validation",
+    learnedFromAgent: "Build Runner",
+    summary: () =>
+      "A patch is not enough unless the run proves import, backend detection, vLLM health, and provenance logging.",
+    solution: "Use a smoke command that imports torch, reports torch.version.hip, starts vLLM, and hits the OpenAI-compatible health path.",
+  },
+  {
+    offsetMs: 19_000,
+    id: "mem-container-split",
+    title: "Separate ROCm container path",
+    scope: "Deployment safety",
+    learnedFromAgent: "Build Runner",
+    summary: () =>
+      "A CUDA image with ROCm comments still leaves teams with a deployment trap.",
+    solution: "Keep Dockerfile.rocm and ROCm launch scripts separate, with CUDA preserved only as an optional backend.",
+  },
+  {
+    offsetMs: 24_000,
+    id: "mem-metric-provenance",
+    title: "Metric provenance rule",
+    scope: "Benchmark evidence",
+    learnedFromAgent: "Benchmark Agent",
+    summary: () =>
+      "Estimated benchmark cards are useful for the MVP only when their source is explicit.",
+    solution: "Label estimates as static ROCmPilot profiles and replace them with AMD SMI plus vLLM logs when MI300X access is available.",
   },
 ];
 
@@ -542,6 +805,10 @@ function buildTarget(record: RunRecord, analysis?: RepoAnalysis): RunTarget {
   };
 }
 
+function buildMessageId(record: RunRecord, offsetMs: number, agent: string) {
+  return `${record.id}.${offsetMs}.${agent.toLowerCase().replace(/\W+/g, "-")}`;
+}
+
 function buildAgentMessages(
   elapsed: number,
   record: RunRecord,
@@ -551,12 +818,47 @@ function buildAgentMessages(
   patches: PatchPreview[]
 ): AgentMessage[] {
   return WAR_ROOM_MESSAGES.filter((blueprint) => elapsed >= blueprint.offsetMs).map((blueprint) => ({
-    id: `${record.id}.${blueprint.offsetMs}.${blueprint.agent.toLowerCase().replace(/\W+/g, "-")}`,
+    id: buildMessageId(record, blueprint.offsetMs, blueprint.agent),
     agent: blueprint.agent,
+    toAgent: blueprint.toAgent,
     role: blueprint.role,
+    task: blueprint.task,
+    leadAgent: blueprint.leadAgent,
     kind: blueprint.kind,
     message: blueprint.message({ target, sample, findings, patches }),
+    replyToId:
+      blueprint.replyToOffsetMs === undefined
+        ? undefined
+        : WAR_ROOM_MESSAGES.find((message) => message.offsetMs === blueprint.replyToOffsetMs)
+          ? buildMessageId(
+              record,
+              blueprint.replyToOffsetMs,
+              WAR_ROOM_MESSAGES.find((message) => message.offsetMs === blueprint.replyToOffsetMs)?.agent ?? "unknown"
+            )
+          : undefined,
+    memoryRefs: blueprint.memoryRefs ?? [],
     createdAt: new Date(record.startedAt + blueprint.offsetMs).toISOString(),
+  }));
+}
+
+function buildAgentMemory(
+  elapsed: number,
+  record: RunRecord,
+  messages: AgentMessage[],
+  findings: Finding[],
+  patches: PatchPreview[]
+): AgentMemory[] {
+  return WAR_ROOM_MEMORY.filter((memory) => elapsed >= memory.offsetMs).map((memory) => ({
+    id: memory.id,
+    title: memory.title,
+    scope: memory.scope,
+    learnedFromAgent: memory.learnedFromAgent,
+    summary: memory.summary({ findings, patches }),
+    solution: memory.solution,
+    createdAt: new Date(record.startedAt + memory.offsetMs).toISOString(),
+    usedBy: messages
+      .filter((message) => message.memoryRefs.includes(memory.id) && new Date(message.createdAt).getTime() > record.startedAt + memory.offsetMs)
+      .map((message) => message.agent),
   }));
 }
 
@@ -629,6 +931,13 @@ export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun
     visibleFindings.length ? visibleFindings : allFindings,
     visiblePatches.length ? visiblePatches : allPatches
   );
+  const agentMemory = buildAgentMemory(
+    elapsed,
+    record,
+    agentMessages,
+    visibleFindings.length ? visibleFindings : allFindings,
+    visiblePatches.length ? visiblePatches : allPatches
+  );
 
   return {
     id: record.id,
@@ -644,6 +953,7 @@ export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun
     patches: visiblePatches,
     logs: visibleLogs,
     agentMessages,
+    agentMemory,
     benchmarks: visibleBenchmarks,
     modelStatus: getModelStatus(),
   };
@@ -652,6 +962,9 @@ export function snapshotRun(record: RunRecord, analysis?: RepoAnalysis): RocmRun
 export function buildFallbackReport(run: RocmRun) {
   const findingList = run.findings
     .map((finding) => `- **${finding.category}** in \`${finding.file}:${finding.line}\`: ${finding.recommendedFix}`)
+    .join("\n");
+  const memoryList = run.agentMemory
+    .map((memory) => `- **${memory.title}**: ${memory.solution}`)
     .join("\n");
 
   return `# ROCmPilot Migration Report
@@ -663,6 +976,10 @@ ROCmPilot completed a multi-agent audit for **${run.sample.name}** and produced 
 ## Agent Findings
 
 ${findingList || "- Findings are still being prepared."}
+
+## Shared Agent Memory
+
+${memoryList || "- Shared memory is still being written by the agents."}
 
 ## AMD GPU Usage
 
@@ -695,6 +1012,9 @@ ${run.findings.map((finding) => `- ${finding.severity}: ${finding.category} in $
 
 Patches:
 ${run.patches.map((patch) => `- ${patch.file}: ${patch.rationale}`).join("\n")}
+
+Shared memory:
+${run.agentMemory.map((memory) => `- ${memory.title}: ${memory.solution}`).join("\n")}
 
 Benchmarks:
 ${run.benchmarks.map((benchmark) => `- ${benchmark.label}: ${benchmark.backend}, ${benchmark.tokensPerSecond} tok/s, p95 ${benchmark.p95LatencyMs}ms, ${benchmark.memoryGb}GB.`).join("\n")}
