@@ -126,7 +126,7 @@
     @apply bg-background text-foreground;
     min-height: 100vh;
     background:
-      radial-gradient(circle at 12% 4%, rgb(118 185 0 / 13%), transparent 28rem),
+      radial-gradient(circle at 12% 4%, rgb(0 224 255 / 14%), transparent 28rem),
       radial-gradient(circle at 88% 0%, rgb(237 28 36 / 20%), transparent 32rem),
       linear-gradient(135deg, #030303 0%, #111111 45%, #180607 100%);
   }
@@ -141,8 +141,8 @@
   isolation: isolate;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgb(118 185 0 / 10%), transparent 28%, rgb(237 28 36 / 16%)),
-    radial-gradient(circle at 8% 0%, rgb(118 185 0 / 12%), transparent 30rem),
+    linear-gradient(90deg, rgb(0 224 255 / 10%), transparent 28%, rgb(237 28 36 / 16%)),
+    radial-gradient(circle at 8% 0%, rgb(0 224 255 / 14%), transparent 30rem),
     radial-gradient(circle at 82% 2%, rgb(237 28 36 / 24%), transparent 34rem),
     linear-gradient(135deg, #050505 0%, #101010 46%, #190607 100%);
 }
@@ -153,9 +153,9 @@
   inset: 0;
   z-index: -2;
   background:
-    linear-gradient(115deg, rgb(118 185 0 / 18%) 0%, transparent 28%, rgb(255 255 255 / 5%) 48%, rgb(237 28 36 / 22%) 72%, transparent 100%);
+    linear-gradient(115deg, rgb(0 224 255 / 18%) 0%, transparent 28%, rgb(255 255 255 / 5%) 48%, rgb(237 28 36 / 22%) 72%, transparent 100%);
   background-size: 230% 100%;
-  animation: nvidiaToAmdWash 18s ease-in-out forwards;
+  animation: neonToAmdWash 18s ease-in-out forwards;
   pointer-events: none;
 }
 
@@ -172,34 +172,6 @@
   pointer-events: none;
 }
 
-.migration-ribbon {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 12%);
-  background:
-    linear-gradient(90deg, rgb(118 185 0 / 12%), rgb(255 255 255 / 4%) 44%, rgb(237 28 36 / 18%)),
-    rgb(10 10 10 / 72%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%);
-}
-
-.migration-ribbon::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 18%), transparent);
-  transform: translateX(-100%);
-  animation: migrationScan 7s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.migration-track {
-  background:
-    linear-gradient(90deg, #76b900 0%, #f2f2f2 46%, #ed1c24 100%);
-  box-shadow:
-    0 0 18px rgb(237 28 36 / 35%),
-    0 0 18px rgb(118 185 0 / 15%);
-}
-
 .amd-card-glow {
   background:
     linear-gradient(180deg, rgb(255 255 255 / 4%), transparent),
@@ -207,7 +179,7 @@
     var(--card);
 }
 
-@keyframes nvidiaToAmdWash {
+@keyframes neonToAmdWash {
   0% {
     background-position: 0% 0%;
     opacity: 0.96;
@@ -219,16 +191,5 @@
   100% {
     background-position: 100% 0%;
     opacity: 0.38;
-  }
-}
-
-@keyframes migrationScan {
-  0%,
-  30% {
-    transform: translateX(-100%);
-  }
-  72%,
-  100% {
-    transform: translateX(100%);
   }
 }

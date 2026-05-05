@@ -103,7 +103,7 @@ const messageKindTone: Record<AgentMessageKind, string> = {
 
 const agentDotTone: Record<string, string> = {
   Orchestrator: "bg-red-400",
-  "Repo Doctor": "bg-[#76B900]",
+  "Repo Doctor": "bg-cyan-300",
   "Migration Planner": "bg-red-300",
   "Build Runner": "bg-amber-300",
   "Benchmark Agent": "bg-zinc-200",
@@ -443,7 +443,7 @@ export function RocmPilotDashboard() {
               <Badge variant="outline" className="w-full justify-start border-amber-500/40 bg-amber-500/10 text-amber-100 sm:w-fit sm:justify-center">
                 Qwen3-Coder-Next
               </Badge>
-              <Badge variant="outline" className="w-full justify-start border-[#76B900]/45 bg-[#76B900]/10 text-[#d7ff9a] sm:w-fit sm:justify-center">
+              <Badge variant="outline" className="w-full justify-start border-cyan-300/50 bg-cyan-400/10 text-cyan-100 shadow-[0_0_18px_rgb(34_211_238_/_0.12)] sm:w-fit sm:justify-center">
                 CUDA to ROCm
               </Badge>
             </div>
@@ -454,24 +454,6 @@ export function RocmPilotDashboard() {
               <p className="mt-2 max-w-full text-sm leading-6 text-muted-foreground sm:max-w-3xl">
                 Multi-agent ROCm migration cockpit for PyTorch and vLLM workloads.
               </p>
-            </div>
-            <div className="migration-ribbon rounded-lg p-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-normal sm:text-xs">
-                  <span className="rounded-md border border-[#76B900]/45 bg-[#76B900]/10 px-2 py-1 text-[#d7ff9a]">
-                    NVIDIA/CUDA assumptions
-                  </span>
-                  <span className="text-muted-foreground">being audited into</span>
-                  <span className="rounded-md border border-red-500/45 bg-red-500/10 px-2 py-1 text-red-100">
-                    AMD ROCm readiness
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>theme migration</span>
-                  <span className="migration-track h-1.5 w-20 rounded-full sm:w-24" />
-                  <span className="text-red-100">settling on AMD</span>
-                </div>
-              </div>
             </div>
           </div>
 
