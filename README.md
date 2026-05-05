@@ -2,7 +2,7 @@
 title: ROCmPilot
 sdk: docker
 app_port: 7860
-short_description: Agentic ROCm migration dashboard for moving AI workloads toward AMD readiness.
+short_description: Agentic ROCm migration dashboard.
 ---
 
 # ROCmPilot
