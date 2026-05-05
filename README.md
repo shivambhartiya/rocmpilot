@@ -13,6 +13,8 @@ ROCmPilot is a multi-agent developer tool that audits AI repositories and produc
 
 The project is built for the **AMD Developer Hackathon, Track 1: AI Agents & Agentic Workflows**. It uses Hugging Face as the temporary model and training layer now, and is designed to switch to AMD Developer Cloud + MI300X + ROCm/vLLM when access is available.
 
+Read the full build story, architecture diagrams, demo script, and implementation details in the **[Technical Walkthrough](./TECHNICAL_WALKTHROUGH.md)**.
+
 ## Why This Exists
 
 Many AI teams want AMD GPU optionality, but their codebases quietly assume NVIDIA:
