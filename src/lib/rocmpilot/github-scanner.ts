@@ -76,6 +76,49 @@ async function fetchGitHubJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function checkGitHubRepositoryAccess(repoUrl: string) {
+  const parsed = parseGitHubRepoUrl(repoUrl);
+
+  if (!parsed || parsed.owner === "example") {
+    return {
+      ok: false as const,
+      message: "Enter a valid public GitHub repository URL, for example https://github.com/owner/repo.",
+    };
+  }
+
+  const response = await fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, {
+    headers: githubHeaders(),
+    cache: "no-store",
+  });
+
+  if (response.ok) {
+    return {
+      ok: true as const,
+      repoUrl: parsed.repoUrl,
+    };
+  }
+
+  if (response.status === 404) {
+    return {
+      ok: false as const,
+      message: `Repository not found: ${parsed.label}. Check that the repo exists and is public.`,
+    };
+  }
+
+  if (response.status === 403 || response.status === 429) {
+    return {
+      ok: false as const,
+      message:
+        "GitHub rate-limited this scan. Add GITHUB_TOKEN in Vercel or try again in a few minutes.",
+    };
+  }
+
+  return {
+    ok: false as const,
+    message: `GitHub could not validate this repository right now (HTTP ${response.status}).`,
+  };
+}
+
 function isRelevantPath(path: string) {
   const lower = path.toLowerCase();
 

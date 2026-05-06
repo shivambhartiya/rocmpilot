@@ -342,6 +342,7 @@ export function RocmPilotDashboard() {
     setIsStarting(true);
     setError(null);
     setReport(null);
+    setRun(null);
     reportRequestedFor.current = null;
 
     try {
@@ -356,7 +357,8 @@ export function RocmPilotDashboard() {
       });
 
       if (!response.ok) {
-        throw new Error("Could not start migration audit");
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Could not start migration audit");
       }
 
       const nextRun = (await response.json()) as RocmRun;

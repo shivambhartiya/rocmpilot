@@ -91,7 +91,7 @@
   --card-foreground: oklch(0.98 0.006 20);
   --popover: oklch(0.145 0.018 20);
   --popover-foreground: oklch(0.98 0.006 20);
-  --primary: oklch(0.62 0.238 25);
+  --primary: oklch(0.6 0.17 23);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.22 0.04 24);
   --secondary-foreground: oklch(0.985 0 0);
@@ -102,7 +102,7 @@
   --destructive: oklch(0.66 0.245 27);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.68 0.22 27);
+  --ring: oklch(0.66 0.16 24);
   --chart-1: oklch(0.64 0.236 25);
   --chart-2: oklch(0.78 0.155 67);
   --chart-3: oklch(0.76 0.2 142);
@@ -110,12 +110,12 @@
   --chart-5: oklch(0.4 0.07 25);
   --sidebar: oklch(0.145 0.018 20);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.62 0.238 25);
+  --sidebar-primary: oklch(0.6 0.17 23);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.22 0.04 24);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.68 0.22 27);
+  --sidebar-ring: oklch(0.66 0.16 24);
 }
 
 @layer base {
@@ -141,7 +141,7 @@
   --theme-accent: color-mix(
     in oklab,
     rgb(34 211 238) calc(100% - var(--theme-progress)),
-    rgb(237 28 36) var(--theme-progress)
+    rgb(214 74 78) var(--theme-progress)
   );
   --theme-accent-text: color-mix(in oklab, var(--theme-accent) 74%, white 26%);
   --theme-accent-soft: color-mix(in oklab, var(--theme-accent) 13%, transparent);
@@ -164,9 +164,9 @@
   z-index: -2;
   opacity: calc(var(--theme-progress-ratio) * 0.92);
   background:
-    radial-gradient(circle at 48% 10%, rgb(237 28 36 / 28%), transparent 38rem),
-    radial-gradient(circle at 18% 44%, rgb(237 28 36 / 18%), transparent 52rem),
-    linear-gradient(135deg, rgb(237 28 36 / 20%), rgb(24 5 7 / 86%));
+    radial-gradient(circle at 48% 10%, rgb(214 74 78 / 22%), transparent 38rem),
+    radial-gradient(circle at 18% 44%, rgb(214 74 78 / 14%), transparent 52rem),
+    linear-gradient(135deg, rgb(214 74 78 / 14%), rgb(22 7 9 / 86%));
   transition: opacity 900ms ease;
   pointer-events: none;
 }
