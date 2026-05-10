@@ -41,6 +41,7 @@ SEED = int(os.environ.get("SEED", "42"))
 SAVE_STRATEGY = os.environ.get("SAVE_STRATEGY", "no")
 RUN_NAME = os.environ.get("RUN_NAME", "rocmpilot-sft-lora-v3")
 TRACKIO_PROJECT = os.environ.get("TRACKIO_PROJECT", "rocmpilot-agent-training")
+REPORT_TO = os.environ.get("REPORT_TO", "trackio")
 
 
 def main() -> None:
@@ -76,7 +77,7 @@ def main() -> None:
             save_strategy=SAVE_STRATEGY,
             save_steps=80,
             save_total_limit=2,
-            report_to="trackio",
+            report_to=REPORT_TO,
             project=TRACKIO_PROJECT,
             run_name=RUN_NAME,
             bf16=bf16,
@@ -87,6 +88,7 @@ def main() -> None:
     )
 
     trainer.train()
+    trainer.save_model()
     trainer.push_to_hub()
 
 
