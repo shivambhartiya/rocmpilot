@@ -38,7 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SAMPLE_REPOS } from "@/lib/rocmpilot/data";
+import { Textarea } from "@/components/ui/textarea";
+import { FINDINGS, PATCHES, SAMPLE_REPOS } from "@/lib/rocmpilot/data";
 import type {
   AgentMemory,
   AgentMessage,
@@ -61,6 +62,8 @@ import {
   Gauge,
   GitBranch,
   Loader2,
+  MessageCircleQuestion,
+  Download,
   Play,
   RefreshCw,
   ShieldCheck,
@@ -316,6 +319,302 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+type CoachMessage = {
+  id: string;
+  role: "user" | "agent";
+  content: string;
+};
+
+function contextFor(run: RocmRun | null, selectedSample: (typeof SAMPLE_REPOS)[number]) {
+  const targetLabel = run?.target.label ?? selectedSample.name;
+  const targetUrl = run?.target.repoUrl ?? selectedSample.repoUrl;
+  const findings = run ? run.findings : FINDINGS;
+  const patches = run ? run.patches : PATCHES;
+  const memory = run?.agentMemory ?? [];
+
+  return { targetLabel, targetUrl, findings, patches, memory };
+}
+
+function answerCudaRocmQuestion(
+  question: string,
+  run: RocmRun | null,
+  selectedSample: (typeof SAMPLE_REPOS)[number]
+) {
+  const normalized = question.toLowerCase();
+  const { targetLabel, findings, patches, memory } = contextFor(run, selectedSample);
+  const topFinding = findings[0];
+  const sharedMemory = memory[0]?.solution ?? "Run the migration audit to unlock shared agent memory.";
+
+  if (!question.trim()) {
+    return "Ask me a CUDA, ROCm, PyTorch, vLLM, Docker, or AMD validation question and I will answer using the current run context.";
+  }
+
+  if (normalized.includes("cuda") && normalized.includes("rocm")) {
+    return `**CUDA vs ROCm for ${targetLabel}**\n\nCUDA is NVIDIA's GPU programming/runtime stack. ROCm is AMD's open GPU compute stack. In PyTorch, ROCm often still appears through \`torch.cuda\` APIs because HIP-backed PyTorch exposes CUDA-compatible interfaces, so the safest migration pattern is not to replace every \`torch.cuda\` string blindly. Instead, add a backend resolver and log whether the active backend is CUDA, ROCm, or CPU.\n\nCurrent context: **${topFinding?.category ?? "no blocker selected"}**. Recommended move: ${topFinding?.recommendedFix ?? sharedMemory}`;
+  }
+
+  if (normalized.includes("torch") || normalized.includes("device") || normalized.includes("hip")) {
+    return `**PyTorch device guidance**\n\nFor ROCm, \`torch.cuda.is_available()\` can still be true because ROCm PyTorch uses HIP under the CUDA-compatible API surface. The important check is \`torch.version.hip\`.\n\nUse a resolver like:\n\n\`\`\`python\nimport torch\n\ndef resolve_accelerator():\n    if torch.cuda.is_available():\n        backend = \"rocm\" if getattr(torch.version, \"hip\", None) else \"cuda\"\n        return \"cuda\", backend\n    return \"cpu\", \"cpu\"\n\`\`\`\n\nShared memory says: ${sharedMemory}`;
+  }
+
+  if (normalized.includes("docker") || normalized.includes("container") || normalized.includes("nvidia")) {
+    return `**Container migration guidance**\n\nDo not turn one CUDA Dockerfile into a confusing hybrid. Keep a separate ROCm path such as \`Dockerfile.rocm\`, use ROCm-compatible PyTorch/vLLM images, and keep NVIDIA runtime flags like \`--gpus all\` behind a CUDA-only profile.\n\nFor this target, ROCmPilot has **${patches.length} patch preview${patches.length === 1 ? "" : "s"}** available. The Migration Kit Agent can package them into a downloadable implementation file.`;
+  }
+
+  if (normalized.includes("vllm") || normalized.includes("qwen") || normalized.includes("model")) {
+    return `**vLLM/Qwen on ROCm**\n\nThe MVP is designed so Qwen can be served from an OpenAI-compatible vLLM endpoint. Today the app stays demo-safe with Hugging Face or fallback output; when AMD access is ready, set \`AMD_QWEN_BASE_URL\` and \`AMD_QWEN_MODEL\` so Report Agent or Migration Planner calls the AMD-hosted model.\n\nFor ${targetLabel}, the serving file to look for is usually \`scripts/serve-rocm.sh\` or a Docker runtime profile.`;
+  }
+
+  if (normalized.includes("benchmark") || normalized.includes("performance") || normalized.includes("mi300")) {
+    return `**Benchmark guidance**\n\nUse estimates only as clearly labeled planning numbers. For submission-grade AMD proof, capture: tokens/sec, p95 latency, model name, ROCm version, vLLM version, memory usage, and whether the run used MI300X.\n\nThe existing Benchmark Agent already marks demo metrics as estimates until live AMD logs replace them.`;
+  }
+
+  return `**ROCmPilot Coach answer for ${targetLabel}**\n\nThe most relevant current finding is **${topFinding?.category ?? "not available yet"}**. ${topFinding?.recommendedFix ?? "Start a run first so the coach can use findings, patch previews, and shared memory."}\n\nAsk more specifically about CUDA APIs, ROCm PyTorch, vLLM serving, Docker migration, dependency pins, or benchmarks and I will narrow the answer.`;
+}
+
+function buildMigrationKit(run: RocmRun | null, selectedSample: (typeof SAMPLE_REPOS)[number]) {
+  const { targetLabel, targetUrl, findings, patches, memory } = contextFor(run, selectedSample);
+  const findingLines = findings
+    .map((finding) => `- ${finding.severity.toUpperCase()}: ${finding.category} in ${finding.file}:${finding.line}\n  Fix: ${finding.recommendedFix}`)
+    .join("\n");
+  const memoryLines = memory.length
+    ? memory.map((entry) => `- ${entry.title}: ${entry.solution}`).join("\n")
+    : "- Run memory is not available yet; use the default ROCm validation checklist below.";
+  const patchSections = patches
+    .map(
+      (patch) => `## File: ${patch.file}\n\nPurpose: ${patch.rationale}\n\n\`\`\`diff\n${patch.diff.trim()}\n\`\`\``
+    )
+    .join("\n\n");
+
+  return `# ROCmPilot Migration Kit
+
+Target: ${targetLabel}
+Repository: ${targetUrl}
+Generated by: Migration Kit Agent
+
+This file packages the implementation work ROCmPilot recommends for moving the selected CUDA-first workload toward AMD ROCm readiness.
+
+## Shared Agent Context
+
+${memoryLines}
+
+## Findings To Address
+
+${findingLines}
+
+## Implementation Patch Previews
+
+${patchSections}
+
+## ROCm Validation Script
+
+\`\`\`bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "ROCmPilot validation for ${targetLabel}"
+python - <<'PY'
+import torch
+print("torch:", torch.__version__)
+print("hip:", getattr(torch.version, "hip", None))
+print("cuda_api_available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("device:", torch.cuda.get_device_name(0))
+PY
+
+python -m vllm.entrypoints.openai.api_server \\
+  --model "\${MODEL:-Qwen/Qwen3-Coder-Next}" \\
+  --host 0.0.0.0 \\
+  --port "\${PORT:-8000}" \\
+  --tensor-parallel-size "\${TENSOR_PARALLEL_SIZE:-1}" \\
+  --max-model-len "\${MAX_MODEL_LEN:-32768}"
+\`\`\`
+
+## Next Steps
+
+1. Apply the patch previews in a feature branch.
+2. Build the ROCm container path separately from the existing CUDA path.
+3. Run the validation script on AMD Developer Cloud.
+4. Replace estimated benchmark cards with MI300X/vLLM logs.
+5. Attach this file, terminal logs, and the final ROCmPilot report to the submission.
+`;
+}
+
+function downloadTextFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function SupportAgents({
+  run,
+  selectedSample,
+}: {
+  run: RocmRun | null;
+  selectedSample: (typeof SAMPLE_REPOS)[number];
+}) {
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState<CoachMessage[]>([
+    {
+      id: "coach-intro",
+      role: "agent",
+      content:
+        "I am the CUDA/ROCm Coach Agent. Ask me what a finding means, how ROCm differs from CUDA, or how to validate PyTorch/vLLM on AMD.",
+    },
+  ]);
+
+  const { targetLabel, findings, patches, memory } = contextFor(run, selectedSample);
+  const kitContent = buildMigrationKit(run, selectedSample);
+  const kitFilename = `${targetLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "rocmpilot"}-migration-kit.md`;
+  const kitReady = patches.length > 0;
+
+  const askCoach = useCallback(() => {
+    const trimmed = question.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    setMessages((current) => [
+      ...current,
+      { id: `user-${Date.now()}`, role: "user", content: trimmed },
+      {
+        id: `coach-${Date.now()}`,
+        role: "agent",
+        content: answerCudaRocmQuestion(trimmed, run, selectedSample),
+      },
+    ]);
+    setQuestion("");
+  }, [question, run, selectedSample]);
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <MessageCircleQuestion className="theme-icon size-5" />
+                CUDA/ROCm Coach Agent
+              </CardTitle>
+              <CardDescription>
+                Separate helper agent for developer questions, using the current findings and memory.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="theme-chip">
+              sidecar agent
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-h-80 space-y-3 overflow-y-auto rounded-lg border border-border/70 bg-background/40 p-3">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`rounded-lg border p-3 ${
+                  message.role === "user"
+                    ? "ml-6 border-border bg-card"
+                    : "mr-6 border-border/70 bg-background/50"
+                }`}
+              >
+                <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                  {message.role === "user" ? "You" : "CUDA/ROCm Coach"}
+                </p>
+                <MessageResponse>{message.content}</MessageResponse>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-2">
+            <Textarea
+              className="min-h-20 bg-card"
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  askCoach();
+                }
+              }}
+              placeholder="Ask: Why does torch.cuda still matter on ROCm? How do I migrate Docker? What should I benchmark?"
+              value={question}
+            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Context: {findings.length} findings, {patches.length} patches, {memory.length} memories.
+              </p>
+              <Button className="theme-action-button" onClick={askCoach} type="button">
+                <MessageCircleQuestion className="size-4" />
+                Ask Coach
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Download className="theme-icon size-5" />
+                Migration Kit Agent
+              </CardTitle>
+              <CardDescription>
+                Builds a downloadable implementation file from repo findings, patches, and shared memory.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="theme-chip">
+              export agent
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 rounded-lg border border-border/70 bg-background/40 p-3 text-sm">
+            <div>
+              <p className="text-muted-foreground">Target</p>
+              <p className="break-words font-medium">{targetLabel}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="font-mono text-lg">{findings.length}</p>
+                <p className="text-xs text-muted-foreground">findings</p>
+              </div>
+              <div>
+                <p className="font-mono text-lg">{patches.length}</p>
+                <p className="text-xs text-muted-foreground">files</p>
+              </div>
+              <div>
+                <p className="font-mono text-lg">{memory.length}</p>
+                <p className="text-xs text-muted-foreground">memories</p>
+              </div>
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-border/70 bg-card p-3">
+            <MessageResponse>
+              {kitReady
+                ? `**Package preview**\n\n- Generates \`${kitFilename}\`\n- Includes patch previews for ${patches.map((patch) => `\`${patch.file}\``).join(", ")}\n- Adds a ROCm validation script for PyTorch HIP detection and vLLM serving\n- References shared memory from the agent war room`
+                : "**Package preview**\n\nPatch previews are still being prepared by Migration Planner. Start or finish a run first, then the kit will use the current repository context."}
+            </MessageResponse>
+          </div>
+          <Button
+            className="theme-action-button w-full"
+            disabled={!kitReady}
+            onClick={() => downloadTextFile(kitFilename, kitContent)}
+            type="button"
+          >
+            <Download className="size-4" />
+            {kitReady ? "Download Migration Kit" : "Waiting for Patch Previews"}
+          </Button>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
@@ -590,6 +889,8 @@ export function RocmPilotDashboard() {
             </Card>
 
             <AgentWarRoom run={run} />
+
+            <SupportAgents run={run} selectedSample={selectedSample} />
 
             <Card>
               <CardHeader>
