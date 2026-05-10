@@ -116,4 +116,14 @@ Final metrics from the successful AMD rerun:
 
 After training, the AMD vLLM endpoint was restarted and tested successfully with `Qwen/Qwen2.5-Coder-7B-Instruct`.
 
+The trained LoRA adapter was also loaded in vLLM as `rocmpilot` with:
+
+```bash
+--enable-lora \
+--max-lora-rank 32 \
+--lora-modules rocmpilot=Shivam311/rocmpilot-agent-qwen25-coder-7b-lora-amd-mi300x-v1
+```
+
+Direct inference against `model=rocmpilot` succeeded on the MI300X endpoint. The public Vercel app remains configured to use the base `Qwen/Qwen2.5-Coder-7B-Instruct` report model for now because the current SFT adapter is intentionally optimized for structured agent behaviors and emits schema-like outputs. The next dataset revision should add more natural markdown report completions before switching the production report panel to the adapter.
+
 Status: completed.
