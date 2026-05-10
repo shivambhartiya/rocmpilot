@@ -265,6 +265,146 @@ MEMORY_CASES = [
 ]
 
 
+COACH_CASES = [
+    {
+        "question": "Why does torch.cuda still appear on ROCm?",
+        "answer": "Explain that HIP-backed PyTorch intentionally exposes much of the torch.cuda API on ROCm, so the agent should inspect torch.version.hip, package wheels, container base image, and runtime logs before treating every torch.cuda call as a blocker.",
+        "must_do": "Separate API compatibility from NVIDIA-only assumptions.",
+    },
+    {
+        "question": "Should I delete CUDA support when adding ROCm?",
+        "answer": "Recommend dual-backend support: preserve CUDA paths, add ROCm profiles, and make backend selection explicit through config, scripts, or containers.",
+        "must_do": "Avoid destructive migration advice.",
+    },
+    {
+        "question": "How do I prove the model actually ran on AMD?",
+        "answer": "Ask for rocm-smi or amd-smi output, vLLM startup logs, model id, endpoint URL, one successful completion, and benchmark metadata with p50/p95 latency and tokens/sec.",
+        "must_do": "Require evidence before live AMD claims.",
+    },
+    {
+        "question": "What should replace nvidia-smi in health checks?",
+        "answer": "Use rocm-smi or amd-smi for AMD visibility while keeping nvidia-smi in a CUDA-specific profile if the project supports both backends.",
+        "must_do": "Preserve backend-specific health checks.",
+    },
+    {
+        "question": "Can I use vLLM on MI300X?",
+        "answer": "Guide the user toward ROCm-compatible vLLM images, conservative max model length, explicit model id, OpenAI-compatible serving, and captured logs for proof.",
+        "must_do": "Tie the answer to ROCm/vLLM operational evidence.",
+    },
+    {
+        "question": "Does a Hugging Face fallback weaken the AMD story?",
+        "answer": "Say no if it is framed honestly: fallback keeps the demo reliable, while AMD endpoint logs prove the upgraded path when available.",
+        "must_do": "Explain fallback without overstating AMD availability.",
+    },
+]
+
+
+ENDPOINT_CASES = [
+    {
+        "status": "AMD_QWEN_BASE_URL configured but connection refused",
+        "diagnosis": "The droplet or vLLM server is down, blocked by firewall, or not listening on the expected port.",
+        "fix": "Verify the droplet is running, check docker ps, inspect vLLM logs, test /v1/models locally, then test the public URL.",
+    },
+    {
+        "status": "AMD endpoint returns 401",
+        "diagnosis": "The configured AMD_QWEN_API_KEY does not match the vLLM server api key.",
+        "fix": "Rotate the server key or update Vercel's AMD_QWEN_API_KEY, then redeploy or redeploy the function environment.",
+    },
+    {
+        "status": "AMD endpoint times out then HF works",
+        "diagnosis": "Fallback is behaving correctly; the AMD path is unavailable or too slow for the report timeout.",
+        "fix": "Keep HF fallback active for demos and only claim AMD-connected reports after the Report Agent source is amd-vllm.",
+    },
+    {
+        "status": "Model id mismatch between app and vLLM",
+        "diagnosis": "The app sent a model name that vLLM did not serve.",
+        "fix": "Set AMD_QWEN_MODEL to the exact served model id from /v1/models.",
+    },
+    {
+        "status": "vLLM loads but OOMs on first request",
+        "diagnosis": "The serving profile is too aggressive for the selected model length, batch shape, or GPU memory utilization.",
+        "fix": "Reduce max model length, lower gpu memory utilization, use a smaller Qwen model, and capture the new startup logs.",
+    },
+]
+
+
+KIT_CASES = [
+    {
+        "repo_profile": "small PyTorch inference repo with hardcoded .cuda() calls",
+        "kit": [
+            "device resolver module",
+            "ROCm smoke test command",
+            "patch preview replacing .cuda() with .to(device)",
+            "README note about HIP-backed torch.cuda behavior",
+        ],
+    },
+    {
+        "repo_profile": "vLLM serving repo using nvidia/cuda Docker base",
+        "kit": [
+            "Dockerfile.rocm",
+            "serve-rocm.sh",
+            "OpenAI-compatible curl test",
+            "vLLM startup log checklist",
+        ],
+    },
+    {
+        "repo_profile": "benchmark repo with only average latency",
+        "kit": [
+            "benchmark_rocm.py",
+            "p50 and p95 latency fields",
+            "tokens/sec output",
+            "backend and GPU metadata capture",
+        ],
+    },
+    {
+        "repo_profile": "Docker Compose stack reserving driver: nvidia",
+        "kit": [
+            "compose.rocm.yml",
+            "backend-specific environment variables",
+            "AMD device visibility command",
+            "dual-backend launch instructions",
+        ],
+    },
+    {
+        "repo_profile": "repo with CUDAExtension and .cu kernels",
+        "kit": [
+            "backend-gated extension build",
+            "ROCm compatibility warning",
+            "prebuilt wheel fallback option",
+            "HIP porting TODO list",
+        ],
+    },
+]
+
+
+DISCUSSION_CASES = [
+    {
+        "lead": "Repo Doctor",
+        "helpers": ["Migration Planner", "Build Runner"],
+        "topic": "Dockerfile uses nvidia/cuda and the launch script uses --gpus all.",
+        "consensus": "Keep the NVIDIA path as a CUDA profile, add a ROCm Dockerfile and serve script, and ask Build Runner to verify AMD container startup.",
+    },
+    {
+        "lead": "Benchmark Agent",
+        "helpers": ["Report Agent", "Memory Agent"],
+        "topic": "The app has only estimated throughput numbers.",
+        "consensus": "Report estimates as planning profiles, store the proof boundary in memory, and require live vLLM plus ROCm logs before claiming AMD measurements.",
+    },
+    {
+        "lead": "Migration Planner",
+        "helpers": ["CUDA/ROCm Coach", "Migration Kit Agent"],
+        "topic": "torch.cuda appears throughout the repo but PyTorch on ROCm may still expose that API.",
+        "consensus": "Do not blindly replace every torch.cuda symbol; add backend detection, inspect torch.version.hip, and patch only NVIDIA-only assumptions.",
+    },
+    {
+        "lead": "Report Agent",
+        "helpers": ["Repo Doctor", "Benchmark Agent"],
+        "topic": "The user wants a judge-ready report after AMD endpoint setup.",
+        "consensus": "Mention Report Agent source only if it is amd-vllm, include model id and endpoint evidence, and avoid workload benchmark claims unless benchmark logs exist.",
+    },
+]
+
+
 def migration_examples() -> list[dict]:
     rows = []
     for case in MIGRATION_CASES:
@@ -366,13 +506,141 @@ def memory_examples() -> list[dict]:
     return rows
 
 
+def repo_doctor_examples() -> list[dict]:
+    rows = []
+    reviewer_contexts = [
+        "first pass scan before planning",
+        "GitHub URL audit for a maintainer",
+        "pre-demo readiness triage",
+    ]
+    for case in MIGRATION_CASES:
+        for snippet in case["snippets"]:
+            for context in reviewer_contexts:
+                rows.append(
+                    {
+                        "task": "repo_doctor",
+                        "input": {
+                            "file": case["file"],
+                            "snippet": snippet,
+                            "context": context,
+                        },
+                        "expected": {
+                            "detected_issue": case["category"],
+                            "severity": case["severity"],
+                            "evidence": snippet.splitlines()[0],
+                            "handoff": "Ask Migration Planner for a ROCm-safe recommendation and Build Runner for validation commands.",
+                        },
+                    }
+                )
+    return rows
+
+
+def coach_examples() -> list[dict]:
+    rows = []
+    audiences = ["developer", "founder", "infra lead", "hackathon judge"]
+    for case in COACH_CASES:
+        for audience in audiences:
+            rows.append(
+                {
+                    "task": "cuda_rocm_coach",
+                    "input": {
+                        "audience": audience,
+                        "question": case["question"],
+                    },
+                    "expected": {
+                        "answer": case["answer"],
+                        "must_do": case["must_do"],
+                        "tone": "direct, helpful, and honest about proof boundaries",
+                    },
+                }
+            )
+    return rows
+
+
+def endpoint_examples() -> list[dict]:
+    rows = []
+    stages = ["local droplet test", "Vercel production report", "demo day fallback"]
+    for case in ENDPOINT_CASES:
+        for stage in stages:
+            rows.append(
+                {
+                    "task": "endpoint_troubleshooter",
+                    "input": {
+                        "stage": stage,
+                        "status": case["status"],
+                    },
+                    "expected": {
+                        "diagnosis": case["diagnosis"],
+                        "fix": case["fix"],
+                        "fallback_rule": "If AMD fails, use Hugging Face before deterministic fallback and label the source truthfully.",
+                    },
+                }
+            )
+    return rows
+
+
+def migration_kit_examples() -> list[dict]:
+    rows = []
+    formats = ["downloadable markdown", "maintainer checklist", "patch preview package"]
+    for case in KIT_CASES:
+        for output_format in formats:
+            rows.append(
+                {
+                    "task": "migration_kit",
+                    "input": {
+                        "repo_profile": case["repo_profile"],
+                        "output_format": output_format,
+                    },
+                    "expected": {
+                        "kit_sections": case["kit"],
+                        "safety_boundary": "Generate files and patch previews for review; do not claim the upstream repo was modified.",
+                    },
+                }
+            )
+    return rows
+
+
+def agent_discussion_examples() -> list[dict]:
+    rows = []
+    constraints = [
+        "ask at least two helper agents before finalizing",
+        "store the reusable decision in memory",
+        "separate live proof from fallback behavior",
+        "produce one owner and one next action",
+    ]
+    for case in DISCUSSION_CASES:
+        for constraint in constraints:
+            rows.append(
+                {
+                    "task": "agent_discussion",
+                    "input": {
+                        "lead": case["lead"],
+                        "helpers": case["helpers"],
+                        "topic": case["topic"],
+                        "constraint": constraint,
+                    },
+                    "expected": {
+                        "discussion_pattern": f"{case['lead']} leads, asks {', '.join(case['helpers'])}, resolves objections, and records memory.",
+                        "consensus": case["consensus"],
+                        "next_action": constraint,
+                    },
+                }
+            )
+    return rows
+
+
 def main() -> None:
     rows = (
-        migration_examples()
+        repo_doctor_examples()
+        + migration_examples()
         + patch_examples()
         + report_examples()
         + benchmark_examples()
         + memory_examples()
+        + coach_examples()
+        + endpoint_examples()
+        + migration_kit_examples()
+        + agent_discussion_examples()
     )
     with OUT_PATH.open("w", encoding="utf-8") as handle:
         for row in rows:

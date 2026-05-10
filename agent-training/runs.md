@@ -55,3 +55,23 @@ hf jobs uv run \
   --env MAX_STEPS=160 \
   agent-training/scripts/train_rocmpilot_sft.py
 ```
+
+## 2026-05-10 polished 1.5B adapter run
+
+- Job: https://huggingface.co/jobs/Shivam311/6a0012de317220dbbd1a74a9
+- Dataset: https://huggingface.co/datasets/Shivam311/rocmpilot-agent-sft
+- Dataset size: 297 examples
+- Base model: `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- Output model: `Shivam311/rocmpilot-agent-qwen25-coder-1.5b-lora-v3`
+- Hardware: Hugging Face Jobs `t4-small`
+- Timeout: `2h`
+- Max steps: `260`
+- Max length: `896`
+- LoRA: `r=32`, `alpha=64`, `dropout=0.05`
+- Learning rate: `1.2e-4`
+- Gradient accumulation: `8`
+- Checkpoint strategy: `no`, final model push only
+
+Purpose: train a more serious ROCmPilot adapter over the expanded agent curriculum, including Repo Doctor scans, CUDA/ROCm Coach answers, Migration Kit generation, endpoint troubleshooting, proof-boundary reporting, and multi-agent memory behavior.
+
+Status: submitted; initial HF stage was `SCHEDULING`.

@@ -54,4 +54,38 @@ hf jobs uv run \
 uv run agent-training/scripts/evaluate_agent.py
 ```
 
-For a serious version, expand the dataset to 200-500 examples before training.
+## Current Polished Run
+
+The current curriculum has 297 examples across:
+
+- Repo Doctor CUDA/NVIDIA scans
+- Migration Planner ROCm recommendations
+- CUDA/ROCm Coach answers
+- Migration Kit downloadable file planning
+- AMD endpoint troubleshooting
+- Benchmark proof-boundary planning
+- Report Agent summaries
+- Memory Agent durable decisions
+- Multi-agent discussion patterns
+
+The current higher-quality adapter run uses:
+
+```bash
+hf jobs uv run \
+  --flavor t4-small \
+  --timeout 2h \
+  --secrets HF_TOKEN \
+  --env BASE_MODEL=Qwen/Qwen2.5-Coder-1.5B-Instruct \
+  --env DATASET_ID=Shivam311/rocmpilot-agent-sft \
+  --env OUTPUT_MODEL=Shivam311/rocmpilot-agent-qwen25-coder-1.5b-lora-v3 \
+  --env MAX_STEPS=260 \
+  --env MAX_LENGTH=896 \
+  --env LORA_R=32 \
+  --env LORA_ALPHA=64 \
+  --env LEARNING_RATE=1.2e-4 \
+  --env GRADIENT_ACCUMULATION_STEPS=8 \
+  --env SAVE_STRATEGY=no \
+  agent-training/scripts/train_rocmpilot_sft.py
+```
+
+`SAVE_STRATEGY=no` avoids the previous intermediate checkpoint metadata issue while still pushing the final LoRA adapter to the Hub at the end of the run.

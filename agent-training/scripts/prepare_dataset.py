@@ -23,7 +23,14 @@ def example_to_messages(row: dict) -> dict:
     input_payload = json.dumps(row["input"], indent=2)
     expected = json.dumps(row["expected"], indent=2)
 
-    if task == "migration_planner":
+    if task == "repo_doctor":
+        user = (
+            "You are ROCmPilot's Repo Doctor Agent. Inspect this repository "
+            "evidence and identify CUDA/NVIDIA assumptions that need a ROCm "
+            "migration handoff.\n\n"
+            f"Evidence:\n{input_payload}"
+        )
+    elif task == "migration_planner":
         user = (
             "You are ROCmPilot's Migration Planner Agent. Analyze this repository "
             "evidence and return a precise ROCm migration finding.\n\n"
@@ -49,6 +56,35 @@ def example_to_messages(row: dict) -> dict:
             "durable long-context memory that can be reused across later migration "
             "runs. Keep the memory precise and action-oriented.\n\n"
             f"Discussion:\n{input_payload}"
+        )
+    elif task == "cuda_rocm_coach":
+        user = (
+            "You are ROCmPilot's CUDA/ROCm Coach Agent. Answer the user's "
+            "question with practical migration guidance. Be accurate about "
+            "HIP-backed torch.cuda behavior, fallback behavior, and AMD proof "
+            "boundaries.\n\n"
+            f"Question:\n{input_payload}"
+        )
+    elif task == "endpoint_troubleshooter":
+        user = (
+            "You are ROCmPilot's Endpoint Troubleshooter Agent. Diagnose this "
+            "AMD ROCm/vLLM serving state and give a clear next step while keeping "
+            "the Hugging Face fallback story honest.\n\n"
+            f"Endpoint state:\n{input_payload}"
+        )
+    elif task == "migration_kit":
+        user = (
+            "You are ROCmPilot's Migration Kit Agent. Decide what downloadable "
+            "files, patch previews, and validation steps belong in the user's "
+            "ROCm migration kit. Do not claim upstream files were changed.\n\n"
+            f"Repo profile:\n{input_payload}"
+        )
+    elif task == "agent_discussion":
+        user = (
+            "You are ROCmPilot's Agent Orchestrator. Simulate a useful multi-agent "
+            "discussion where one lead agent asks helpers for input, resolves "
+            "objections, and stores the reusable decision in memory.\n\n"
+            f"Discussion request:\n{input_payload}"
         )
     else:
         user = (
