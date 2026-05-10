@@ -13,12 +13,14 @@
 | --- | --- |
 | Live demo | [https://rocmpilot.vercel.app](https://rocmpilot.vercel.app) |
 | Source code | [https://github.com/shivambhartiya/rocmpilot](https://github.com/shivambhartiya/rocmpilot) |
+| Hugging Face Space | [https://shivam311-rocmpilot.hf.space](https://shivam311-rocmpilot.hf.space) |
 | Training dataset | [https://huggingface.co/datasets/Shivam311/rocmpilot-agent-sft](https://huggingface.co/datasets/Shivam311/rocmpilot-agent-sft) |
+| AMD-trained LoRA adapter | [https://huggingface.co/Shivam311/rocmpilot-agent-qwen25-coder-7b-lora-amd-mi300x-v1](https://huggingface.co/Shivam311/rocmpilot-agent-qwen25-coder-7b-lora-amd-mi300x-v1) |
 | Technical walkthrough | [TECHNICAL_WALKTHROUGH.md](./TECHNICAL_WALKTHROUGH.md) |
 
 ## One-Line Pitch
 
-ROCmPilot is a multi-agent developer tool that scans CUDA-first AI repositories and generates ROCm migration findings, patch previews, validation plans, reusable memory, and a judge-ready technical/business report.
+ROCmPilot is a multi-agent developer tool that scans CUDA-first AI repositories and generates ROCm migration findings, patch previews, validation plans, reusable memory, downloadable migration kits, and a judge-ready technical/business report, with Qwen inference and LoRA training proven on AMD MI300X.
 
 ## Why ROCmPilot Matters
 
@@ -47,11 +49,12 @@ flowchart LR
   M --> W["Agent War Room"]
   W --> S["Synap Long-Context Memory"]
   W --> REP["Report Agent"]
+  REP --> AMD["AMD MI300X ROCm/vLLM Qwen endpoint"]
   REP --> HF["Hugging Face Qwen fallback"]
-  REP --> AMD["Future AMD ROCm/vLLM Qwen endpoint"]
   REP --> OUT["Final migration report"]
   P --> PATCH["ROCm patch previews"]
   M --> EVID["Validation checklist"]
+  P --> KIT["Downloadable migration kit"]
 ```
 
 ## User Flow
@@ -76,6 +79,8 @@ ROCmPilot uses specialized agents, each responsible for a different migration co
 | Benchmark Agent | Separates live evidence from estimates. | AMD-readiness profile and measurement plan. |
 | Memory Agent | Stores reusable decisions across runs. | Synap-backed long-context memory or local fallback memory. |
 | Report Agent | Turns the run into a credible submission/report. | Final markdown report with technical and business value. |
+| CUDA/ROCm Coach Agent | Answers user questions about CUDA, ROCm, PyTorch, vLLM, fallback behavior, and proof boundaries. | Practical developer guidance grounded in the current run. |
+| Migration Kit Agent | Packages findings and patch previews into a downloadable handoff artifact. | Markdown migration kit with files, commands, and validation steps. |
 
 ## Agent War Room
 
@@ -184,7 +189,7 @@ This pattern is important because PyTorch on ROCm still exposes GPU access throu
 
 ## Model and Compute Strategy
 
-ROCmPilot is a Track 1 agentic workflow project. The GPU plan is model serving, not fine-tuning as the main hackathon track.
+ROCmPilot is a Track 1 agentic workflow project. The primary product is agent coordination around a real developer migration workflow, and AMD compute powers the model-serving and training proof behind that workflow.
 
 ```mermaid
 flowchart TD
@@ -204,31 +209,84 @@ flowchart TD
 2. Hugging Face Router via `HF_TOKEN`
 3. Static fallback report
 
-This keeps the submission demo-safe while preserving the AMD compute story. Once AMD Developer Cloud access is available, the same report endpoint can prefer AMD-hosted Qwen automatically.
+This keeps the submission demo-safe while still using AMD compute when it is available. If the MI300X droplet is shut down, the app waits briefly, falls back to Hugging Face, and still completes the run.
 
-## Training Path on Hugging Face
+## AMD MI300X Proof
 
-The project includes a small supervised fine-tuning path for polishing the agent style and migration recommendations.
+ROCmPilot now has real AMD proof in two layers: inference and training.
+
+### AMD Inference
+
+We launched an AMD Developer Cloud MI300X instance with the ROCm/vLLM quick-start image and served Qwen through an OpenAI-compatible endpoint.
+
+| Proof Item | Captured Result |
+| --- | --- |
+| GPU visibility | `rocm-smi` showed `AMD Instinct MI300X VF` |
+| Runtime | ROCm quick-start container |
+| Serving stack | vLLM `0.17.1+rocm700` |
+| Report model | `Qwen/Qwen2.5-Coder-7B-Instruct` |
+| Endpoint format | OpenAI-compatible `/v1/chat/completions` |
+| Vercel source | `amd-vllm` when the droplet is online |
+
+The live app was verified to return:
+
+```text
+source: amd-vllm
+label: AMD GPU Model: Connected
+model: Qwen/Qwen2.5-Coder-7B-Instruct
+```
+
+### AMD Training
+
+We also trained a Qwen Coder LoRA adapter on AMD MI300X using ROCm PyTorch.
+
+| Item | Value |
+| --- | --- |
+| Base model | `Qwen/Qwen2.5-Coder-7B-Instruct` |
+| Output adapter | `Shivam311/rocmpilot-agent-qwen25-coder-7b-lora-amd-mi300x-v1` |
+| Dataset | `Shivam311/rocmpilot-agent-sft` |
+| Dataset size | 297 examples |
+| Hardware | AMD MI300X |
+| LoRA config | `r=32`, `alpha=64`, `dropout=0.05` |
+| Training runtime | about 279 seconds |
+| Train loss | about 0.497 |
+| Final eval loss | about 0.0447 |
+| Adapter size | about 323 MB |
+
+During training, `rocm-smi` showed the MI300X actively working with high GPU utilization. The adapter was pushed to Hugging Face and then loaded back into vLLM as:
+
+```text
+model=rocmpilot
+```
+
+Direct inference against `model=rocmpilot` succeeded on the AMD endpoint. The public Vercel report panel currently stays on the base AMD-hosted Qwen model because the adapter is optimized for structured agent behavior and tends to emit schema-like report outputs. The next data revision will add more natural markdown report completions before switching the production report panel to the adapter.
+
+## Training Path
+
+The project includes a supervised fine-tuning path for polishing agent style, structured migration recommendations, and long-term task behavior.
 
 | Artifact | Detail |
 | --- | --- |
 | Dataset repo | [Shivam311/rocmpilot-agent-sft](https://huggingface.co/datasets/Shivam311/rocmpilot-agent-sft) |
-| Current seed size | 95 examples |
-| Tasks | migration planner, patch planner, benchmark agent, report agent, memory agent |
-| Base model target | `Qwen/Qwen2.5-Coder-0.5B-Instruct` for small LoRA experiments |
-| Output model target | `Shivam311/rocmpilot-agent-qwen-lora-v2` |
+| Current seed size | 297 examples |
+| Tasks | repo doctor, migration planner, patch planner, benchmark agent, report agent, memory agent, CUDA/ROCm coach, endpoint troubleshooter, migration kit, agent discussion |
+| AMD-trained base model | `Qwen/Qwen2.5-Coder-7B-Instruct` |
+| AMD-trained adapter | `Shivam311/rocmpilot-agent-qwen25-coder-7b-lora-amd-mi300x-v1` |
+| Serving test | Adapter loaded into AMD vLLM as `rocmpilot` |
 
 ```mermaid
 flowchart LR
   SEED["Synthetic and human-reviewed examples"] --> PREP["prepare_dataset.py"]
   PREP --> DATASET["HF Dataset: rocmpilot-agent-sft"]
-  DATASET --> TRAIN["LoRA SFT job"]
-  TRAIN --> MODEL["Qwen LoRA adapter"]
+  DATASET --> HFTRAIN["HF Jobs experiments"]
+  DATASET --> AMDTRAIN["AMD MI300X ROCm LoRA run"]
+  AMDTRAIN --> MODEL["Qwen 7B ROCmPilot LoRA adapter"]
   MODEL --> EVAL["evaluate_agent.py"]
-  EVAL --> APP["Future report/migration backend"]
+  MODEL --> VLLM["vLLM LoRA module: rocmpilot"]
+  EVAL --> APP["Future structured-agent backend"]
 ```
 
-Training is supporting polish, not the central submission claim. The main project remains an agentic developer workflow.
+Training is supporting polish, not replacing the main product. The central submission claim remains the agentic developer workflow, with AMD compute proof for both serving and LoRA training.
 
 ## App Architecture
 
@@ -321,7 +379,7 @@ flowchart LR
   VERCEL --> ENV["Environment variables"]
   ENV --> HFENV["HF_TOKEN"]
   ENV --> SYNENV["SYNAP_API_KEY and SYNAP_INSTANCE_ID"]
-  ENV --> AMDENV["AMD_QWEN_BASE_URL later"]
+  ENV --> AMDENV["AMD_QWEN_BASE_URL and AMD_QWEN_MODEL"]
   APP --> USER["Hackathon judges and users"]
 ```
 
@@ -337,8 +395,9 @@ flowchart LR
 | `SYNAP_BASE_URL` | Optional | Synap cloud endpoint override. |
 | `SYNAP_CUSTOMER_ID` | Optional | Memory scope, defaults to `rocmpilot-hackathon`. |
 | `SYNAP_USER_ID` | Optional | Agent fleet memory identity. |
-| `AMD_QWEN_BASE_URL` | Later | Enables AMD-hosted Qwen through ROCm/vLLM. |
-| `AMD_QWEN_MODEL` | Later | Defaults to `Qwen/Qwen3-Coder-Next`. |
+| `AMD_QWEN_BASE_URL` | Optional | Enables AMD-hosted Qwen through ROCm/vLLM. |
+| `AMD_QWEN_MODEL` | Optional | Current production value is `Qwen/Qwen2.5-Coder-7B-Instruct`; trained adapter can be served as `rocmpilot`. |
+| `AMD_QWEN_API_KEY` | Optional | Bearer token for the vLLM endpoint when protected. |
 
 ## Demo Script
 
@@ -351,7 +410,7 @@ Use this script for a 2-3 minute project walkthrough.
 5. Point to the Agent War Room and show agents asking each other questions instead of acting independently.
 6. Show Shared Memory and explain that decisions are reused later.
 7. Open Migration Findings and Patch Previews.
-8. Open the GPU model status card and explain the backend priority: AMD ROCm/vLLM when available, Hugging Face fallback now, static fallback for reliability.
+8. Open the GPU model status card and explain the backend priority: AMD ROCm/vLLM when available, Hugging Face fallback when AMD is down, static fallback for reliability.
 9. Open the Long-context memory card and explain Synap memory.
 10. Show the final report and emphasize business value: faster AMD migration planning, reduced infra risk, and a clear path from audit to validation.
 
@@ -370,15 +429,21 @@ Use this script for a 2-3 minute project walkthrough.
 | Static fallback report | Implemented |
 | Vercel deployment | Implemented |
 | Training dataset | Implemented and published |
+| CUDA/ROCm Coach Agent | Implemented |
+| Migration Kit Agent | Implemented |
+| AMD MI300X vLLM inference | Implemented and verified |
+| AMD MI300X Qwen LoRA training | Implemented and verified |
+| AMD-trained LoRA adapter | Implemented, published, and loaded into vLLM as `rocmpilot` |
 
 ## Honest Boundaries
 
 | Capability | Current Boundary |
 | --- | --- |
 | Automatic PR creation | Not implemented yet. ROCmPilot generates patch previews and recommendations. |
-| Live AMD MI300X benchmark proof | Pending AMD Developer Cloud access. Current benchmark cards are labeled static estimates. |
+| Live workload benchmark proof | Not yet run end-to-end against arbitrary user repos. Current benchmark cards are labeled static estimates unless live logs are captured. |
 | Synap on every Vercel run | Integrated, but falls back if the Synap Python bridge cannot initialize in the serverless runtime. |
 | Full repository mutation | Not performed by design in the MVP. Maintainers should review patch previews first. |
+| Production report model | Uses base AMD-hosted Qwen for polished markdown. The AMD-trained adapter is currently better suited to structured agent outputs. |
 
 ## Business Value
 
@@ -410,38 +475,61 @@ gantt
   GitHub scan and patch previews         :done,    mvp2, 2026-05-04, 1d
   Synap memory integration               :done,    mvp3, 2026-05-05, 1d
   Training dataset expansion             :done,    mvp4, 2026-05-05, 1d
+  section AMD Proof
+  Live AMD MI300X vLLM proof             :done,    next2, 2026-05-10, 1d
+  AMD MI300X LoRA training proof         :done,    next3, 2026-05-10, 1d
   section Next
-  Automatic PR generation                :active,  next1, 2026-05-06, 2d
-  Live AMD MI300X vLLM proof             :         next2, 2026-05-07, 2d
-  Larger human-reviewed dataset          :         next3, 2026-05-08, 4d
-  NodeOps memory worker                  :         next4, 2026-05-08, 3d
+  Natural markdown report SFT examples   :active,  next4, 2026-05-11, 2d
+  Live workload benchmark runner         :         next5, 2026-05-12, 3d
+  Automatic GitHub PR generation         :         next6, 2026-05-13, 3d
 ```
 
-## Future AMD Integration
+## AMD Serving And Training Commands
 
-When AMD Developer Cloud access is available:
+The AMD proof used an MI300X instance with a ROCm/vLLM quick-start container.
 
-1. Start an MI300X instance.
-2. Launch Qwen through ROCm/vLLM using an OpenAI-compatible server.
-3. Set `AMD_QWEN_BASE_URL` and `AMD_QWEN_MODEL` in Vercel.
-4. Re-run ROCmPilot.
-5. Capture proof:
-   - AMD GPU visibility logs
-   - vLLM startup logs
-   - one successful model response
-   - workload validation output
-   - updated final report generated through AMD-hosted Qwen
-
-Suggested command:
+Base report model serving:
 
 ```bash
-python -m vllm.entrypoints.openai.api_server \
-  --model Qwen/Qwen3-Coder-Next \
+vllm serve Qwen/Qwen2.5-Coder-7B-Instruct \
   --host 0.0.0.0 \
   --port 8000 \
-  --tensor-parallel-size 1 \
-  --max-model-len 32768
+  --trust-remote-code \
+  --max-model-len 8192 \
+  --gpu-memory-utilization 0.90 \
+  --api-key "$AMD_QWEN_API_KEY"
 ```
+
+Serving the AMD-trained LoRA adapter:
+
+```bash
+vllm serve Qwen/Qwen2.5-Coder-7B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --trust-remote-code \
+  --max-model-len 8192 \
+  --gpu-memory-utilization 0.88 \
+  --api-key "$AMD_QWEN_API_KEY" \
+  --enable-lora \
+  --max-lora-rank 32 \
+  --lora-modules rocmpilot=Shivam311/rocmpilot-agent-qwen25-coder-7b-lora-amd-mi300x-v1
+```
+
+The app uses the same OpenAI-compatible endpoint:
+
+```text
+POST /v1/chat/completions
+```
+
+## Future AMD Expansion
+
+The next AMD steps are:
+
+1. Add more natural markdown report completions to the SFT dataset.
+2. Promote the `rocmpilot` adapter from structured-agent backend to production report backend.
+3. Run live workload benchmarks against real scanned repositories.
+4. Add automatic GitHub pull request generation.
+5. Test larger Qwen code models such as 14B/32B as optional high-power AMD mode.
 
 ## Why This Fits Track 1
 
@@ -458,4 +546,8 @@ That makes **AI Agents & Agentic Workflows** the best hackathon track.
 
 ## Closing Summary
 
-ROCmPilot turns CUDA-to-ROCm migration from an unclear engineering chore into an agentic developer workflow. It scans real repositories, identifies migration blockers, proposes ROCm-ready patches, records reusable memory, and generates a technical/business report. The MVP is reliable on Vercel today through Hugging Face and fallback paths, while the architecture is ready to upgrade to AMD Instinct GPUs with ROCm/vLLM as soon as AMD cloud access is available.
+ROCmPilot turns CUDA-to-ROCm migration from an unclear engineering chore into an agentic developer workflow. It scans real repositories, identifies migration blockers, proposes ROCm-ready patches, records reusable memory, and generates a technical/business report.
+
+The MVP is reliable on Vercel, but it is no longer only a simulated AMD story: Qwen inference has run through ROCm/vLLM on AMD MI300X, and a Qwen Coder 7B LoRA adapter has been trained on AMD MI300X and loaded back into vLLM as `rocmpilot`. The current production report path uses the base AMD-hosted Qwen model for polished markdown, while the trained adapter becomes the next structured-agent backend after more report-style data is added.
+
+That is the heart of ROCmPilot: a practical path from "this repo assumes CUDA" to "here is how we move, prove, remember, and scale it on AMD."
