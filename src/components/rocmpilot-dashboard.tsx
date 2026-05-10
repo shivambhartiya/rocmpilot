@@ -52,9 +52,7 @@ import type {
 } from "@/lib/rocmpilot/types";
 import {
   Activity,
-  BadgeCheck,
   Bot,
-  Boxes,
   BrainCircuit,
   CheckCircle2,
   Cpu,
@@ -68,7 +66,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Sparkles,
-  TerminalSquare,
   TriangleAlert,
   Zap,
 } from "lucide-react";
@@ -1189,29 +1186,6 @@ export function RocmPilotDashboard() {
                     Benchmark cards appear during the run.
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Boxes className="size-5 text-amber-200" />
-                  Submission proof
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-start gap-2">
-                  <BadgeCheck className="theme-icon mt-0.5 size-4" />
-                  <span>Track 1 agentic workflow with five specialized agents.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <BadgeCheck className="theme-icon mt-0.5 size-4" />
-                  <span>AMD GPU story through ROCm/vLLM Qwen model serving.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <TerminalSquare className="theme-icon mt-0.5 size-4" />
-                  <span>Demo remains reliable without credentials, then upgrades with live endpoint logs.</span>
-                </div>
               </CardContent>
             </Card>
           </aside>
