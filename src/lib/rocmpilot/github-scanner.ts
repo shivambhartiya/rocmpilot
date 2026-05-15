@@ -202,12 +202,12 @@ function detectFindings(files: ScannedFile[]) {
       addFinding(
         findings,
         {
-          severity: "critical",
-          category: "Hardcoded CUDA device path",
+          severity: "high",
+          category: "GPU backend provenance gap",
           file: file.path,
           line: firstLineOf(content, /torch\.device\(\s*["']cuda["']\s*\)|\.cuda\(|\.cuda\(\)|device_map\s*=\s*["']cuda["']/i),
           explanation:
-            "The code moves models/tensors directly to CUDA, so the workload needs a backend-aware device resolver before AMD validation.",
+            "The code moves models/tensors through the CUDA API surface. That can still work on ROCm PyTorch, but the repo needs backend provenance before AMD validation.",
           recommendedFix:
             "Introduce a resolver that treats HIP-backed torch.cuda availability as ROCm and records backend provenance in logs/metrics.",
         },
@@ -303,7 +303,7 @@ function detectFindings(files: ScannedFile[]) {
 
 function buildPatchPreviews(findings: Finding[]): PatchPreview[] {
   const hasDocker = findings.some((finding) => finding.category.includes("container"));
-  const hasDevice = findings.some((finding) => finding.category.includes("CUDA device") || finding.category.includes("backend"));
+  const hasDevice = findings.some((finding) => finding.category.includes("provenance") || finding.category.includes("backend"));
   const hasDeps = findings.some((finding) => finding.category.includes("dependency"));
   const patches: PatchPreview[] = [];
 

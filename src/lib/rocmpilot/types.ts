@@ -146,4 +146,15 @@ export type ReportResponse = {
   source: ModelSource;
   modelStatus: GpuModelStatus;
   memoryStatus: LongContextMemoryStatus;
+  agentMessages?: AgentMessage[];
+  agentMemory?: AgentMemory[];
+};
+
+export type AgentChainResponse = {
+  agentMessages: AgentMessage[];
+  agentMemory: AgentMemory[];
+  source: ModelSource;
+  modelStatus: GpuModelStatus;
+  memoryStatus: LongContextMemoryStatus;
+  fallback: boolean;
 };

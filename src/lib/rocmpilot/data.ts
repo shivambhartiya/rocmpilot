@@ -89,12 +89,12 @@ export const SAMPLE_REPOS: SampleRepo[] = [
 export const FINDINGS: Finding[] = [
   {
     id: "cuda-device",
-    severity: "critical",
-    category: "Runtime device lock",
+    severity: "high",
+    category: "GPU backend provenance gap",
     file: "src/inference/server.py",
     line: 42,
     explanation:
-      "`torch.device('cuda')` is used directly, so the app never checks ROCm-compatible PyTorch device availability or CPU fallback.",
+      "`torch.device('cuda')` is used directly. That can still work on ROCm PyTorch, but the app never records whether the active backend is HIP/ROCm, CUDA, or CPU fallback.",
     recommendedFix:
       "Introduce a device resolver that accepts HIP-backed PyTorch as CUDA-compatible and records the detected backend.",
   },
@@ -191,11 +191,11 @@ export const PATCHES: PatchPreview[] = [
 export const BENCHMARKS: BenchmarkResult[] = [
   {
     label: "Before migration",
-    backend: "CUDA-only config",
+    backend: "NVIDIA-oriented config",
     tokensPerSecond: 0,
     p95LatencyMs: 0,
     memoryGb: 0,
-    costNote: "Does not boot on AMD ROCm image.",
+    costNote: "AMD readiness is unproven until ROCm container and vLLM smoke tests pass.",
   },
   {
     label: "ROCm-ready target",
@@ -219,7 +219,7 @@ const LOGS = [
   "queued run qwen-vllm-cuda-starter in mock-safe mode",
   "repo-doctor: scanning pyproject.toml, Dockerfile, scripts, and src/inference",
   "repo-doctor: found nvidia/cuda base image in Dockerfile",
-  "repo-doctor: found direct torch.device('cuda') usage in src/inference/server.py:42",
+  "repo-doctor: found direct torch.device('cuda') usage; marking as backend-provenance evidence, not automatic ROCm incompatibility",
   "migration-planner: generated ROCm runtime image proposal",
   "migration-planner: created backend-aware device resolver",
   "build-runner: docker build -f Dockerfile.rocm .",
@@ -1043,7 +1043,7 @@ export function buildFallbackReport(run: RocmRun, longContext?: string) {
 
 ## Executive Summary
 
-ROCmPilot completed a multi-agent audit for **${run.sample.name}** and produced an AMD ROCm migration path for a PyTorch/vLLM workload. The system found CUDA-only assumptions, generated ROCm patch previews, and prepared the project for validation on AMD Developer Cloud.
+ROCmPilot completed a chained multi-agent audit for **${run.sample.name}** and produced an AMD ROCm migration path for a PyTorch/vLLM workload. The system found NVIDIA-specific runtime assumptions, backend provenance gaps, and validation requirements, then generated ROCm patch previews for AMD Developer Cloud.
 
 ## Agent Findings
 
@@ -1059,10 +1059,10 @@ ${longContext || "- Synap memory was not available for this report, so ROCmPilot
 
 ## AMD GPU Usage
 
-- Primary model target: **Qwen/Qwen3-Coder-Next**
+- Primary model path: **configured Qwen coding model**
 - Serving path: **ROCm + vLLM OpenAI-compatible endpoint**
-- GPU goal: run the Migration Planner or Report Agent on AMD Instinct MI300X
-- MVP fallback: deterministic report generation when the endpoint is unavailable
+- GPU goal: run chained migration/report agents on AMD Instinct MI300X
+- Fallback path: Hugging Face Router or deterministic generation when the endpoint is unavailable
 
 ## Business Value
 
@@ -1070,7 +1070,7 @@ ROCmPilot reduces the time needed to move inference services away from NVIDIA-on
 
 ## Next Step
 
-Connect \`AMD_QWEN_BASE_URL\` to a live ROCm/vLLM endpoint and rerun the report stage to replace demo metrics with captured MI300X evidence.`;
+Connect \`AMD_QWEN_BASE_URL\` to a live ROCm/vLLM endpoint and rerun the chained agents to replace planning metrics with captured MI300X evidence.`;
 }
 
 export function buildReportPrompt(run: RocmRun, longContext?: string) {
@@ -1081,7 +1081,8 @@ Track: AI Agents & Agentic Workflows.
 Sample repo: ${run.sample.name} (${run.sample.stack}).
 Target: ${run.target.label} (${run.target.repoUrl}).
 Scan status: ${run.target.scanStatus}, scanned files: ${run.target.scannedFiles}.
-GPU story: Qwen3-Coder-Next served on AMD Instinct MI300X with ROCm/vLLM powers the report or migration agent when configured.
+GPU story: a configured Qwen coding model served on AMD Instinct MI300X with ROCm/vLLM powers the chained agents or report agent when AMD_QWEN_BASE_URL is configured; otherwise the app falls back to Hugging Face or deterministic output.
+Technical nuance: PyTorch on ROCm exposes HIP through much of the torch.cuda API, so .cuda() or torch.device("cuda") is an inspection signal, not automatic incompatibility. Focus claims on container/runtime assumptions, dependency pins, backend provenance, and validation proof.
 
 Findings:
 ${run.findings.map((finding) => `- ${finding.severity}: ${finding.category} in ${finding.file}:${finding.line}. Fix: ${finding.recommendedFix}`).join("\n")}
@@ -1091,6 +1092,9 @@ ${run.patches.map((patch) => `- ${patch.file}: ${patch.rationale}`).join("\n")}
 
 Shared memory:
 ${run.agentMemory.map((memory) => `- ${memory.title}: ${memory.solution}`).join("\n")}
+
+Real agent transcript:
+${run.agentMessages.map((message) => `- ${message.agent} -> ${message.toAgent} (${message.kind}): ${message.message}`).join("\n")}
 
 Long-context memory from Synap or fallback memory:
 ${longContext || "- No long-context memory was available beyond the current run."}

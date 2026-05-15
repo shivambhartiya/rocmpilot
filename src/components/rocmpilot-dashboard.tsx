@@ -42,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FINDINGS, PATCHES, SAMPLE_REPOS } from "@/lib/rocmpilot/data";
 import type {
   AgentMemory,
+  AgentChainResponse,
   AgentMessage,
   AgentMessageKind,
   FindingSeverity,
@@ -177,7 +178,9 @@ function WarRoomMessage({
             </>
           )}
         </div>
-        <p className="break-words text-sm leading-6 text-foreground">{message.message}</p>
+        <div className="break-words text-sm leading-6 text-foreground">
+          <MessageResponse>{message.message}</MessageResponse>
+        </div>
         {message.memoryRefs.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {message.memoryRefs.map((memoryId) => (
@@ -196,9 +199,23 @@ function WarRoomMessage({
   );
 }
 
-function AgentWarRoom({ run }: { run: RocmRun | null }) {
-  const messages = useMemo(() => run?.agentMessages ?? [], [run?.agentMessages]);
-  const memory = useMemo(() => run?.agentMemory ?? [], [run?.agentMemory]);
+function AgentWarRoom({
+  hasRealTranscript,
+  isGenerating,
+  run,
+}: {
+  hasRealTranscript: boolean;
+  isGenerating: boolean;
+  run: RocmRun | null;
+}) {
+  const messages = useMemo(
+    () => (hasRealTranscript ? run?.agentMessages ?? [] : []),
+    [hasRealTranscript, run?.agentMessages]
+  );
+  const memory = useMemo(
+    () => (hasRealTranscript ? run?.agentMemory ?? [] : []),
+    [hasRealTranscript, run?.agentMemory]
+  );
   const latestMessage = messages[messages.length - 1];
   const activeLead = latestMessage?.leadAgent ?? "No lead assigned";
   const memoryById = useMemo(
@@ -216,7 +233,7 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
               Agent War Room
             </CardTitle>
             <CardDescription>
-              Lead-led discussion with replies, objections, and shared memory the agents reuse later.
+              Real chained model outputs: each agent receives previous-agent reasoning before speaking.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -230,7 +247,13 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
                     : "border-zinc-700 bg-zinc-950 text-zinc-300"
               }
             >
-              {run?.status === "running" ? "live room" : run?.status === "completed" ? "consensus" : "standby"}
+              {isGenerating
+                ? "calling models"
+                : hasRealTranscript
+                  ? "model transcript"
+                  : run?.status === "running"
+                    ? "collecting evidence"
+                    : "standby"}
             </Badge>
             <Badge variant="outline" className="border-zinc-700 bg-zinc-950 text-zinc-200">
               lead: {activeLead}
@@ -247,10 +270,10 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
         </div>
         {latestMessage && (
           <div className="theme-panel rounded-lg border p-3 text-sm leading-6 text-foreground">
-            <span className="font-medium">
+            <span className="mb-2 block font-medium">
               {latestMessage.agent} to {latestMessage.toAgent}:
-            </span>{" "}
-            <span className="theme-text">{latestMessage.message}</span>
+            </span>
+            <MessageResponse className="theme-text">{latestMessage.message}</MessageResponse>
           </div>
         )}
       </CardHeader>
@@ -295,6 +318,27 @@ function AgentWarRoom({ run }: { run: RocmRun | null }) {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        ) : isGenerating ? (
+          <div className="grid gap-3 rounded-lg border border-dashed border-border p-4">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Loader2 className="theme-icon size-4 animate-spin" />
+              Repo Doctor, Migration Planner, Build Runner, Benchmark Agent, and Report Agent are being called in sequence.
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                "Repo Doctor",
+                "Migration Planner",
+                "Build Runner",
+                "Benchmark Agent",
+                "Report Agent",
+              ].map((agent) => (
+                <div key={agent} className="flex min-w-0 items-center gap-3 rounded-lg bg-card p-3">
+                  <span className={`size-2.5 shrink-0 rounded-full ${agentDotTone[agent] ?? "bg-zinc-400"}`} />
+                  <span className="truncate text-sm text-muted-foreground">{agent}</span>
+                </div>
+              ))}
             </div>
           </div>
         ) : (
@@ -620,8 +664,10 @@ export function RocmPilotDashboard() {
   const [githubUrl, setGithubUrl] = useState("");
   const [run, setRun] = useState<RocmRun | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
+  const [agentChain, setAgentChain] = useState<AgentChainResponse | null>(null);
   const [activePanel, setActivePanel] = useState<"patches" | "logs" | "report">("patches");
   const [isStarting, setIsStarting] = useState(false);
+  const [isGeneratingAgents, setIsGeneratingAgents] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reportRequestedFor = useRef<string | null>(null);
@@ -638,6 +684,7 @@ export function RocmPilotDashboard() {
     setIsStarting(true);
     setError(null);
     setReport(null);
+    setAgentChain(null);
     setRun(null);
     reportRequestedFor.current = null;
 
@@ -700,6 +747,43 @@ export function RocmPilotDashboard() {
     }
   }, []);
 
+  const generateAgentChainAndReport = useCallback(
+    async (completedRun: RocmRun) => {
+      setIsGeneratingAgents(true);
+
+      try {
+        const response = await fetch("/api/agents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(completedRun),
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not generate real agent transcript");
+        }
+
+        const chain = (await response.json()) as AgentChainResponse;
+        const enrichedRun: RocmRun = {
+          ...completedRun,
+          agentMessages: chain.agentMessages,
+          agentMemory: chain.agentMemory,
+          longContextMemory: chain.memoryStatus,
+          modelStatus: chain.modelStatus,
+        };
+
+        setAgentChain(chain);
+        setRun((current) => (current?.id === completedRun.id ? enrichedRun : current));
+        await generateReport(enrichedRun);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Unknown agent chain error");
+        await generateReport(completedRun);
+      } finally {
+        setIsGeneratingAgents(false);
+      }
+    },
+    [generateReport]
+  );
+
   useEffect(() => {
     if (!run || run.status === "completed") {
       return;
@@ -720,11 +804,15 @@ export function RocmPilotDashboard() {
     }
 
     reportRequestedFor.current = run.id;
-    void generateReport(run);
-  }, [generateReport, run]);
+    void generateAgentChainAndReport(run);
+  }, [generateAgentChainAndReport, run]);
 
   const modelStatus = report?.modelStatus ?? run?.modelStatus;
   const memoryStatus = report?.memoryStatus ?? run?.longContextMemory;
+  const hasRealAgentTranscript =
+    Boolean(agentChain) &&
+    Boolean(run?.agentMessages.length) &&
+    Boolean(run?.agentMessages[0]?.id.includes(".llm-agent-"));
   const completedStages = run?.stages.filter((stage) => stage.status === "completed").length ?? 0;
   const themeProgress = run?.progress ?? (isStarting ? 4 : 0);
   const themeStyle = {
@@ -885,7 +973,11 @@ export function RocmPilotDashboard() {
               </CardContent>
             </Card>
 
-            <AgentWarRoom run={run} />
+            <AgentWarRoom
+              hasRealTranscript={hasRealAgentTranscript}
+              isGenerating={isGeneratingAgents}
+              run={run}
+            />
 
             <SupportAgents run={run} selectedSample={selectedSample} />
 
@@ -895,7 +987,7 @@ export function RocmPilotDashboard() {
                   <ShieldCheck className="theme-icon size-5" />
                   Migration findings
                 </CardTitle>
-                <CardDescription>CUDA assumptions, ROCm blockers, and recommended fixes.</CardDescription>
+                <CardDescription>NVIDIA runtime assumptions, ROCm validation gaps, and recommended fixes.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-hidden rounded-lg border">
@@ -1008,7 +1100,7 @@ export function RocmPilotDashboard() {
                       {isGeneratingReport ? (
                         <div className="flex h-64 items-center justify-center gap-3 text-sm text-muted-foreground">
                           <Loader2 className="size-4 animate-spin" />
-                          Report Agent is calling AMD-hosted Qwen or fallback output.
+                          Report Agent is using the real War Room transcript to write the final report.
                         </div>
                       ) : report?.report ? (
                         <MessageResponse>{report.report}</MessageResponse>
@@ -1071,7 +1163,7 @@ export function RocmPilotDashboard() {
                   <Cpu className="theme-icon size-5" />
                   GPU model status
                 </CardTitle>
-                <CardDescription>Qwen endpoint used by the Report Agent.</CardDescription>
+                <CardDescription>Qwen endpoint used by the chained agents and Report Agent.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Badge
